@@ -22,7 +22,6 @@ A [MagicMirror²](https://github.com/MagicMirrorOrg/MagicMirror) module for disp
 1. A working MagicMirror² installation
 2. For API mode: A UniFi OS console (Cloud Key, UDM, or similar) with Network application
 3. For API mode: Local UniFi OS username and password with Network permissions
-4. (Optional) MMM-UniFiHotspotVouchers module for voucher data integration
 
 ## Installation
 
@@ -353,13 +352,9 @@ Notes:
 
 ## Voucher Code Integration
 
-### With MMM-UniFiHotspotVouchers
+Voucher data is fetched directly from the UniFi API in API/auto modes.
 
-If MMM-UniFiHotspotVouchers is installed and configured, this module will attempt to use its voucher data. The module looks for the first active voucher and displays it.
-
-### Without MMM-UniFiHotspotVouchers
-
-The module can fetch voucher data directly from the UniFi API (in API mode) or can display a fallback message with the hotspot portal password.
+If no active vouchers are returned, the module falls back to hotspot portal password display (when enabled).
 
 ### No Vouchers Available
 
@@ -408,7 +403,7 @@ Hotspot portal settings fallback uses:
 1. `/proxy/network/api/s/{site}/get/setting`
 2. `/api/s/{site}/get/setting`
 
-Authentication uses session cookies from `POST /api/auth/login` (same pattern used by MMM-UniFiHotspotVouchers), not bearer token-only calls.
+Authentication uses session cookies from `POST /api/auth/login` for controller-login mode, with API key support where available.
 
 ## Troubleshooting
 
@@ -439,7 +434,6 @@ Authentication uses session cookies from `POST /api/auth/login` (same pattern us
 
 ### Voucher Code Not Displaying
 
-- If using MMM-UniFiHotspotVouchers, ensure it's installed and running
 - Verify active vouchers exist in the hotspot portal
 - In API mode, verify user has permission to read vouchers
 - Check `showVoucher: true` setting

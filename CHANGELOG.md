@@ -30,6 +30,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Fixed perpetual loading condition by surfacing a clear UI error after retries are exhausted.
 - Fixed voucher card left accent line styling artifact.
 
+### Removed
+- Removed legacy voucher sourcing references tied to `MMM-UniFiHotspotVouchers`; voucher retrieval is now documented and supported as API-only.
+
 ## [1.0.0] - 2026-04-30
 
 ### Added
