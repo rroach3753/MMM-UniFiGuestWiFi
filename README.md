@@ -4,13 +4,16 @@ A [MagicMirror²](https://github.com/MagicMirrorOrg/MagicMirror) module for disp
 
 ## Features
 
-- **Multiple Data Sources**: Fetch Hotspot WiFi details from UniFi controller API (with guest fallback for compatibility) or use configuration-based settings
+- **Multiple Data Sources**: Fetch guest/hotspot WiFi details from UniFi controller API or use configuration-based settings
+- **Flexible Authentication**: API key first with automatic controller-login fallback when credentials are provided
 - **WiFi Security Support**: Open, OWE, OWE Transition, WPA, WPA2, and WPA3 networks
-- **QR Code Generation**: WiFi connection strings with proper encoding for special characters
-- **Hidden SSID Support**: Display and encode hidden networks correctly
-- **Voucher Integration**: Displays next available active voucher code from MMM-UniFiHotspotVouchers or direct API query
+- **WiFi Standard Badge**: Displays WiFi generation badge (WiFi 4/5/6/6E/7) when detectable
+- **Enhanced WiFi Detection Mode**: Optional AP-capability-based detection to improve WiFi 7 classification
+- **Backend QR Generation**: Server-side QR image generation for reliable rendering on older Electron runtimes
+- **Captive Portal Friendly QR**: QR payload joins SSID only (portal password is displayed in UI, not embedded in QR)
+- **Voucher Integration**: Displays next available active voucher code from direct API query
 - **Fallback Support**: Shows hotspot portal password when no vouchers are available
-- **Password Masking**: Optional password display masking in the UI (QR code still contains actual password)
+- **Password Masking**: Optional password display masking in the UI (for protected networks)
 - **Responsive Layouts**: Vertical (default) or horizontal layout options
 - **Customizable Styling**: QR code size, colors, and display options
 
@@ -88,11 +91,16 @@ Add this to your `config/config.js` file. See examples below for specific scenar
 | `site` | string | `"default"` | UniFi site name |
 | `verifySSL` | boolean | `false` | Verify SSL certificates |
 | `refreshInterval` | number | `300000` | Data refresh interval in milliseconds (5 minutes) |
+| `enhancedWiFiStandardDetection` | boolean | `true` | Use AP capability data (`stat/device`) to improve WiFi generation badging |
 
 Authentication behavior in API mode:
 - If `apiKey` is set, the module tries API key authentication first.
 - If API key does not return usable data and `username` + `controllerPassword` are set, it falls back to controller login.
 - If API key is not set, it uses `username` + `controllerPassword` directly.
+
+WiFi standard detection behavior:
+- `enhancedWiFiStandardDetection: true` (default) uses AP capability lookups to improve WiFi generation badging.
+- Set `enhancedWiFiStandardDetection: false` to use SSID-level data only (more conservative classification).
 
 #### Display Options
 
@@ -103,6 +111,7 @@ Authentication behavior in API mode:
 | `showSSID` | boolean | `true` | Show SSID/network name |
 | `showPassword` | boolean | `true` | Show password (if applicable) |
 | `showSecurityType` | boolean | `true` | Show security type badge |
+| `showWiFiStandard` | boolean | `true` | Show WiFi generation badge |
 | `showVoucher` | boolean | `true` | Show voucher code section |
 | `maskPassword` | boolean | `false` | Mask password display (asterisks/dots) - QR still contains actual password |
 
@@ -128,6 +137,7 @@ Authentication behavior in API mode:
 | `emptyMessage` | string | `"No guest WiFi configured."` | Message when no WiFi data available |
 | `loadingMessage` | string | `"Loading guest WiFi details..."` | Message while loading |
 | `noVouchersMessage` | string | `"No active vouchers available"` | Message when no vouchers found |
+| `captivePortalHint` | string | `"If the portal page does not open automatically, close Camera and open your favorite browser."` | Hint shown below QR for captive portal onboarding |
 
 ## Configuration Examples
 
@@ -304,42 +314,28 @@ Authentication behavior in API mode:
 
 ### OWE_TRANSITION
 - Network configured for both Open and OWE compatibility
-- Displayed as OWE in QR code
+- Displayed as `OWE TRANSITION` in the UI badge
+- Encoded with open join behavior in QR for compatibility with camera-based onboarding
 - Password field not displayed
-- UI shows "OWE Transition" badge
 
 ### WPA / WPA2 / WPA3
 - Traditional password-protected networks
-- QR format: `WIFI:T:WPA;S:NetworkName;P:Password;;`
 - Password field displayed (unless masked)
-- Supports special characters (URL-encoded in QR)
 
 ## QR Code Format Details
 
-All QR codes follow the WiFi connection string format:
+QR payloads are intentionally captive-portal friendly and encode SSID join metadata only.
+
+Current format:
 
 ```
-WIFI:T:{securityType};H:{isHidden};S:{SSID};P:{password};;
+WIFI:S:{SSID};T:{nopass|OWE};;
 ```
 
-### Special Character Handling
-
-Special characters in SSID and password are URL-encoded in the QR code per the WiFi QR specification:
-- Spaces: `%20`
-- Semicolons: `%3B`
-- Commas: `%2C`
-- Colons: `%3A`
-- And other special characters as needed
-
-The UI displays the actual characters for readability.
-
-### Hidden SSID Format
-
-Hidden networks include the `H:true` flag:
-
-```
-WIFI:T:WPA;H:true;S:{SSID};P:{Password};;
-```
+Notes:
+- Portal/voucher passwords are shown in the UI and are not embedded in the QR payload.
+- OWE transition networks are encoded for compatibility with camera-based onboarding.
+- SSID text is safely escaped for QR payload generation.
 
 ## Voucher Code Integration
 
@@ -404,9 +400,9 @@ Authentication uses session cookies from `POST /api/auth/login` (same pattern us
 
 ### QR Code Not Generating
 
-- Verify the `qrcode.min.js` library is present in the module folder
-- Check browser console for JavaScript errors
-- Ensure `QRCode` library is loaded before DOM rendering
+- Ensure dependencies are installed (`npm install`)
+- Check MagicMirror logs for backend errors in `node_helper.js`
+- Verify controller/API mode can return usable network data
 
 ### WiFi Data Not Displaying
 
@@ -423,7 +419,7 @@ Authentication uses session cookies from `POST /api/auth/login` (same pattern us
 
 ### Special Characters Not Working in QR
 
-- Ensure the QR code string is properly URL-encoded (this is handled automatically)
+- SSID text is escaped automatically before QR generation
 - Test the generated QR code with a mobile device
 - Some old QR scanners may not support special characters
 

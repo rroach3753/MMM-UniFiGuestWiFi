@@ -177,6 +177,7 @@ module.exports = NodeHelper.create({
       site: normalizeString(config.site, "default"),
       verifySSL: normalizeBoolean(config.verifySSL, false),
       refreshInterval: normalizeNumber(config.refreshInterval, 300000),
+      enhancedWiFiStandardDetection: normalizeBoolean(config.enhancedWiFiStandardDetection, true),
       maskPassword: normalizeBoolean(config.maskPassword, false)
     };
   },
@@ -193,6 +194,7 @@ module.exports = NodeHelper.create({
       ssid: config.ssid,
       password: config.password || null,
       securityType: config.securityType,
+      wifiStandard: null,
       isHidden: config.isHidden,
       qrString
     };
@@ -248,18 +250,209 @@ module.exports = NodeHelper.create({
     const ssid = guestNetwork.name || guestNetwork.ssid || "Guest Network";
     const password = guestNetwork.passwd || guestNetwork.psk || guestNetwork.passphrase || "";
     const securityType = this.mapSecurityType(guestNetwork);
+    const wifiStandard = await this.mapWiFiStandard(config, guestNetwork);
     const isHidden = Boolean(guestNetwork.hide_ssid || guestNetwork.hidden || guestNetwork.is_hidden);
 
     return {
       ssid,
       password: password || null,
       securityType,
+      wifiStandard,
       isHidden,
       qrString: this.generateQRString(ssid, password, securityType, isHidden)
     };
   },
 
+  async mapWiFiStandard(config, network) {
+    const baseStandard = this.mapWiFiStandardFromNetwork(network);
+    if (!normalizeBoolean(config.enhancedWiFiStandardDetection, true)) {
+      return baseStandard;
+    }
+
+    if (baseStandard === "WiFi 7") {
+      return baseStandard;
+    }
+
+    try {
+      const enhancedStandard = await this.mapWiFiStandardFromControllerRadios(config, network, baseStandard);
+      return enhancedStandard || baseStandard;
+    } catch (error) {
+      console.warn("[MMM-UniFiGuestWiFi] Enhanced WiFi standard detection failed:", error.message);
+      return baseStandard;
+    }
+  },
+
+  mapWiFiStandardFromNetwork(network) {
+    const flattenedSignals = JSON.stringify(network || {}).toLowerCase();
+    const bands = [];
+
+    if (Array.isArray(network.wlan_bands)) {
+      for (const band of network.wlan_bands) {
+        bands.push(String(band).toLowerCase());
+      }
+    }
+
+    if (network.wlan_band) {
+      bands.push(String(network.wlan_band).toLowerCase());
+    }
+
+    const has6g = bands.some((band) => band.includes("6g"));
+    const mloEnabled = (
+      network.mlo_enabled === true ||
+      network.mloEnabled === true ||
+      String(network.mlo_enabled || network.mloEnabled || "").toLowerCase() === "true"
+    );
+
+    // Most trustworthy indicator for 802.11be in UniFi WLAN config.
+    if (mloEnabled || flattenedSignals.includes("11be") || flattenedSignals.includes("wifi7") || flattenedSignals.includes("eht")) {
+      return "WiFi 7";
+    }
+
+    // 6 GHz without MLO is typically WiFi 6E in UniFi WLAN definitions.
+    if (has6g) {
+      return "WiFi 6E";
+    }
+
+    if (flattenedSignals.includes("11ax") || flattenedSignals.includes("wifi6") || flattenedSignals.includes(" he ")) {
+      return "WiFi 6";
+    }
+
+    if (flattenedSignals.includes("11ac") || flattenedSignals.includes("wifi5") || flattenedSignals.includes("vht")) {
+      return "WiFi 5";
+    }
+
+    if (flattenedSignals.includes("11n") || flattenedSignals.includes("wifi4") || flattenedSignals.includes("ht")) {
+      return "WiFi 4";
+    }
+
+    return null;
+  },
+
+  async mapWiFiStandardFromControllerRadios(config, network, baseStandard) {
+    const bands = [];
+
+    if (Array.isArray(network.wlan_bands)) {
+      for (const band of network.wlan_bands) {
+        bands.push(String(band).toLowerCase());
+      }
+    }
+
+    if (network.wlan_band) {
+      bands.push(String(network.wlan_band).toLowerCase());
+    }
+
+    const has6g = bands.some((band) => band.includes("6g"));
+    if (!has6g) {
+      return baseStandard;
+    }
+
+    const apDevices = await this.fetchAPDeviceRecords(config);
+    if (!apDevices.length) {
+      return baseStandard;
+    }
+
+    const hasWiFi7CapableAP = apDevices.some((device) => this.isWiFi7CapableDevice(device));
+    if (hasWiFi7CapableAP) {
+      return "WiFi 7";
+    }
+
+    return baseStandard;
+  },
+
+  isWiFi7CapableDevice(device) {
+    if (!device || typeof device !== "object") {
+      return false;
+    }
+
+    const model = String(device.model || device.type || "").toUpperCase();
+    if (model.includes("U7") || model.includes("11BE") || model.includes("WIFI7")) {
+      return true;
+    }
+
+    const flattened = JSON.stringify(device).toLowerCase();
+    if (/\b11be\b/.test(flattened) || /\bwifi[-_ ]?7\b/.test(flattened) || /\beht\b/.test(flattened)) {
+      return true;
+    }
+
+    const radios = Array.isArray(device.radio_table) ? device.radio_table : [];
+    for (const radio of radios) {
+      const width = Number(radio.ht || radio.channel_width || radio.chan_width || 0);
+      if (Number.isFinite(width) && width >= 320) {
+        return true;
+      }
+    }
+
+    return false;
+  },
+
+  async fetchAPDeviceRecords(config) {
+    const site = encodeURIComponent(config.site);
+    const endpoints = [
+      `/proxy/network/api/s/${site}/stat/device`,
+      `/api/s/${site}/stat/device`
+    ];
+
+    let authMode = normalizeString(config.authMode, "auto").toLowerCase();
+    if (authMode === "api") {
+      authMode = "auto";
+    }
+
+    const apiKey = normalizeString(config.apiKey, "");
+    const username = normalizeString(config.username, "");
+    const password = resolveControllerPassword(config);
+
+    if (apiKey && (authMode === "auto" || authMode === "apikey")) {
+      try {
+        const records = await this.fetchRecordsFromAnyEndpoint(config, endpoints, {
+          apiKey,
+          apiKeyHeader: normalizeString(config.apiKeyHeader, "X-API-Key")
+        });
+
+        if (records.length > 0) {
+          return records;
+        }
+      } catch (error) {
+        if (authMode === "apikey") {
+          throw error;
+        }
+      }
+    }
+
+    if (!username || !password) {
+      return [];
+    }
+
+    await this.login(config, username, password);
+    return this.fetchRecordsFromAnyEndpoint(config, endpoints, { cookies: this.sessionCookies });
+  },
+
   mapSecurityType(network) {
+    const primarySecurity = String(network.security || network.security_protocol || network.security_mode || network.securityMode || "").toLowerCase();
+    const wpa3Support = (
+      network.wpa3_support === true ||
+      network.wpa3Support === true ||
+      String(network.wpa3_support || network.wpa3Support || "").toLowerCase() === "true"
+    );
+    const wpa3Transition = (
+      network.wpa3_transition === true ||
+      network.wpa3Transition === true ||
+      String(network.wpa3_transition || network.wpa3Transition || "").toLowerCase() === "true"
+    );
+
+    const enhancedOpenFlags = [
+      network.owe,
+      network.owe_enabled,
+      network.oweEnabled,
+      network.owe_mode,
+      network.oweMode,
+      network.enhanced_open,
+      network.enhancedOpen,
+      network.enhanced_open_mode,
+      network.enhancedOpenMode
+    ]
+      .map((value) => String(value == null ? "" : value).toLowerCase())
+      .some((value) => ["true", "1", "on", "enabled", "owe", "enhanced_open", "enhanced open"].includes(value));
+
     const tertiarySignals = [
       network.akm,
       network.akms,
@@ -269,6 +462,15 @@ module.exports = NodeHelper.create({
       network.securityProto,
       network.wpa3_support,
       network.wpa3_transition,
+      network.owe,
+      network.owe_enabled,
+      network.oweEnabled,
+      network.owe_mode,
+      network.oweMode,
+      network.enhanced_open,
+      network.enhancedOpen,
+      network.enhanced_open_mode,
+      network.enhancedOpenMode,
       network.sae,
       network.sae_mode,
       network.saeMode,
@@ -303,7 +505,13 @@ module.exports = NodeHelper.create({
       network.pmf_mode,
       network.pmfMode,
       network.owe_transition,
+      network.oweTransition,
       network.owe_transition_mode,
+      network.oweTransitionMode,
+      network.enhanced_open_transition,
+      network.enhancedOpenTransition,
+      network.enhanced_open_transition_mode,
+      network.enhancedOpenTransitionMode,
       network.transition_mode,
       network.transitionMode
     ]
@@ -312,6 +520,17 @@ module.exports = NodeHelper.create({
       .join(" ");
 
     const securitySignals = [primarySignals, secondarySignals, tertiarySignals].filter(Boolean).join(" ");
+
+    const oweTransitionFlag = [
+      network.owe_transition,
+      network.oweTransition,
+      network.owe_transition_mode,
+      network.oweTransitionMode,
+      network.transition_mode,
+      network.transitionMode
+    ]
+      .map((value) => String(value == null ? "" : value).toLowerCase())
+      .some((value) => ["true", "1", "on", "enabled", "transition"].includes(value));
 
     if (primarySignals.includes("owe") && primarySignals.includes("transition")) {
       return "OWE_TRANSITION";
@@ -322,6 +541,18 @@ module.exports = NodeHelper.create({
     }
 
     if (primarySignals.includes("owe") || primarySignals.includes("enhanced open")) {
+      return "OWE";
+    }
+
+    // UniFi Enhanced Open + Transition commonly appears as:
+    // security=open, wpa3_support=true, wpa3_transition=true.
+    if ((primarySecurity === "open" || primarySignals.includes("open")) && wpa3Support && wpa3Transition) {
+      return "OWE_TRANSITION";
+    }
+
+    // UniFi Open + OWE (non-transition) commonly appears as:
+    // security=open, wpa3_support=true, wpa3_transition=false.
+    if ((primarySecurity === "open" || primarySignals.includes("open")) && wpa3Support && !wpa3Transition) {
       return "OWE";
     }
 
@@ -337,6 +568,15 @@ module.exports = NodeHelper.create({
       return "OWE_TRANSITION";
     }
 
+    if (oweTransitionFlag && (securitySignals.includes("owe") || securitySignals.includes("enhanced open") || enhancedOpenFlags || primarySignals.includes("open"))) {
+      return "OWE_TRANSITION";
+    }
+
+    // Some UniFi payloads only expose "open" in primary fields plus explicit enhanced-open flags.
+    if (primarySignals.includes("open") && enhancedOpenFlags) {
+      return "OWE_TRANSITION";
+    }
+
     if (!primarySignals && (securitySignals.includes("owe") || securitySignals.includes("enhanced open"))) {
       return "OWE";
     }
@@ -345,13 +585,24 @@ module.exports = NodeHelper.create({
       return "OPEN";
     }
 
+    // wpa3_support is a boolean in UniFi responses — stringifying it yields "true" not "wpa3".
+    // Check it after OWE checks so Enhanced Open/OWE transition is not mislabeled WPA3.
+    if (wpa3Support) {
+      return "WPA3";
+    }
+
+    // pmf_mode "required" is mandatory for WPA3-only; UniFi may still report wpa_mode "wpa2".
+    const pmfMode = String(network.pmf_mode || network.pmfMode || "").toLowerCase();
+    if (pmfMode === "required") {
+      return "WPA3";
+    }
+
     if (
       securitySignals.includes("wpa3") ||
       securitySignals.includes("sae") ||
       securitySignals.includes("psk2+sae") ||
       securitySignals.includes("wpa2/wpa3") ||
-      securitySignals.includes("wpa2-wpa3") ||
-      securitySignals.includes("transition")
+      securitySignals.includes("wpa2-wpa3")
     ) {
       return "WPA3";
     }

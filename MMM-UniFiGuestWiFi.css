@@ -53,17 +53,37 @@
   flex: 1;
 }
 
+.guest-wifi-container.vertical .info-section {
+  align-items: center;
+  text-align: center;
+}
+
 .guest-wifi-container.horizontal .info-section {
   min-width: 200px;
 }
 
 .ssid-row,
 .password-row,
-.security-row {
+.security-row,
+.wifi-standard-row {
   display: flex;
   gap: 10px;
   align-items: center;
   font-size: 14px;
+}
+
+.guest-wifi-container.vertical .ssid-row,
+.guest-wifi-container.vertical .password-row {
+  justify-content: center;
+  width: 100%;
+}
+
+.security-meta-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
 .ssid-row .label,
@@ -121,6 +141,18 @@
   color: #9c27b0;
 }
 
+.wifi-standard-badge {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  background-color: rgba(0, 188, 212, 0.25);
+  color: #80deea;
+}
+
 .qr-section {
   display: flex;
   flex-direction: column;
@@ -166,11 +198,11 @@
 .voucher-section {
   display: flex;
   flex-direction: column;
+  align-items: center;
   gap: 8px;
   padding: 10px;
   background-color: rgba(255, 255, 255, 0.05);
   border-radius: 4px;
-  border-left: 3px solid rgba(255, 255, 255, 0.2);
   margin-top: 10px;
 }
 
@@ -179,6 +211,8 @@
   opacity: 0.7;
   text-transform: uppercase;
   letter-spacing: 0.5px;
+  text-align: center;
+  width: 100%;
 }
 
 .voucher-section .label.warning {

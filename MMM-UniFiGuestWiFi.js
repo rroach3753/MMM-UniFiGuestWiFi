@@ -21,6 +21,8 @@ Module.register("MMM-UniFiGuestWiFi", {
     showSSID: true,
     showPassword: true,
     showSecurityType: true,
+    showWiFiStandard: true,
+    enhancedWiFiStandardDetection: true,
     showVoucher: true,
     maskPassword: false,
     voucherLabel: "Guest Code",
@@ -39,6 +41,7 @@ Module.register("MMM-UniFiGuestWiFi", {
       ssid: null,
       password: null,
       securityType: null,
+      wifiStandard: null,
       isHidden: false,
       qrString: null,
       qrImageDataUrl: null,
@@ -97,6 +100,7 @@ Module.register("MMM-UniFiGuestWiFi", {
         ssid: payload.ssid || null,
         password: payload.password || null,
         securityType: payload.securityType || "WPA",
+        wifiStandard: payload.wifiStandard || null,
         isHidden: payload.isHidden || false,
         qrString: payload.qrString || null,
         qrImageDataUrl: payload.qrImageDataUrl || null,
@@ -190,15 +194,35 @@ Module.register("MMM-UniFiGuestWiFi", {
       infoSection.appendChild(ssidEl);
     }
 
-    if (this.config.showSecurityType) {
-      var securityEl = document.createElement("div");
-      var securityBadge = document.createElement("span");
+    if (this.config.showSecurityType || (this.config.showWiFiStandard && this.dataState.wifiStandard)) {
+      var securityMetaRow = document.createElement("div");
+      securityMetaRow.className = "security-meta-row";
 
-      securityEl.className = "security-row";
-      securityBadge.className = "security-badge security-" + String(this.dataState.securityType || "open").toLowerCase();
-      securityBadge.textContent = this.dataState.securityType;
-      securityEl.appendChild(securityBadge);
-      infoSection.appendChild(securityEl);
+      if (this.config.showSecurityType) {
+        var securityEl = document.createElement("div");
+        var securityBadge = document.createElement("span");
+        var securityTypeText = String(this.dataState.securityType || "OPEN");
+
+        securityEl.className = "security-row";
+        securityBadge.className = "security-badge security-" + securityTypeText.toLowerCase();
+        securityBadge.textContent = securityTypeText.replace(/_/g, " ");
+        securityEl.appendChild(securityBadge);
+        securityMetaRow.appendChild(securityEl);
+      }
+
+      if (this.config.showWiFiStandard && this.dataState.wifiStandard) {
+        var wifiStandardEl = document.createElement("div");
+        var wifiStandardBadge = document.createElement("span");
+
+        wifiStandardEl.className = "wifi-standard-row";
+        wifiStandardBadge.className = "wifi-standard-badge";
+        wifiStandardBadge.textContent = this.dataState.wifiStandard;
+
+        wifiStandardEl.appendChild(wifiStandardBadge);
+        securityMetaRow.appendChild(wifiStandardEl);
+      }
+
+      infoSection.appendChild(securityMetaRow);
     }
 
     if (this.config.showPassword && this.dataState.password && this.dataState.securityType !== "OPEN" && this.dataState.securityType !== "OWE" && this.dataState.securityType !== "OWE_TRANSITION") {
