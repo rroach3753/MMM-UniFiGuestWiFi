@@ -49,6 +49,20 @@ mmpm install MMM-UniFiGuestWiFi
 
 Add this to your `config/config.js` file. See examples below for specific scenarios.
 
+## Screenshots
+
+### Portal Password Shown (No Vouchers Available)
+
+When there are no active vouchers, the module displays the hotspot portal password fallback.
+
+![Portal password shown when no vouchers are available](images/portalpassword-novouchers.png)
+
+### Voucher Available (Portal Password Hidden)
+
+When an active voucher is available, the module shows the next voucher and hides the portal password fallback.
+
+![Voucher shown and portal password hidden](images/vouchers-hideportalpassword.png)
+
 ### Basic Structure
 
 ```js
