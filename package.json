@@ -1,0 +1,18 @@
+{
+  "name": "mmm-unifiguestwifi",
+  "version": "1.0.0",
+  "description": "MagicMirror module for displaying UniFi guest WiFi network details and connection information",
+  "main": "MMM-UniFiGuestWiFi.js",
+  "license": "MIT",
+  "keywords": [
+    "MagicMirror",
+    "UniFi",
+    "Ubiquiti",
+    "WiFi",
+    "guest",
+    "QR code"
+  ],
+  "dependencies": {
+    "qrcode": "^1.5.4"
+  }
+}

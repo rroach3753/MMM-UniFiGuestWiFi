@@ -1,0 +1,222 @@
+.mmm-unifi-guestwifi {
+  padding: 15px;
+  font-family: Roboto, sans-serif;
+  color: #fff;
+}
+
+.mmm-unifi-guestwifi .message,
+.mmm-unifi-guestwifi .error {
+  text-align: center;
+  padding: 20px;
+  font-size: 14px;
+}
+
+.mmm-unifi-guestwifi .error {
+  color: #ff6b6b;
+  background-color: rgba(255, 107, 107, 0.1);
+  border-radius: 4px;
+}
+
+.guest-wifi-container {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.guest-wifi-container.vertical .content-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  align-items: center;
+}
+
+.guest-wifi-container.horizontal .content-wrapper {
+  display: flex;
+  flex-direction: row;
+  gap: 20px;
+  align-items: flex-start;
+}
+
+.title {
+  text-align: center;
+  font-size: 18px;
+  font-weight: 300;
+  letter-spacing: 2px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+  padding-bottom: 10px;
+}
+
+.info-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1;
+}
+
+.guest-wifi-container.horizontal .info-section {
+  min-width: 200px;
+}
+
+.ssid-row,
+.password-row,
+.security-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  font-size: 14px;
+}
+
+.ssid-row .label,
+.password-row .label {
+  min-width: 90px;
+  font-weight: 500;
+  opacity: 0.7;
+}
+
+.ssid-row .value,
+.password-row .value {
+  flex: 1;
+  word-break: break-word;
+}
+
+.hidden-badge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 8px;
+  background-color: rgba(255, 255, 255, 0.15);
+  border-radius: 12px;
+  font-size: 12px;
+  opacity: 0.8;
+}
+
+.security-badge {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.security-badge.security-open {
+  background-color: rgba(76, 175, 80, 0.3);
+  color: #4caf50;
+}
+
+.security-badge.security-owe {
+  background-color: rgba(33, 150, 243, 0.3);
+  color: #2196f3;
+}
+
+.security-badge.security-owe_transition {
+  background-color: rgba(255, 152, 0, 0.3);
+  color: #ff9800;
+}
+
+.security-badge.security-wpa,
+.security-badge.security-wpa2,
+.security-badge.security-wpa3 {
+  background-color: rgba(156, 39, 176, 0.3);
+  color: #9c27b0;
+}
+
+.qr-section {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+}
+
+.guest-wifi-container.horizontal .qr-section {
+  flex-shrink: 0;
+}
+
+.qr-container {
+  background-color: #fff;
+  padding: 10px;
+  border-radius: 4px;
+  display: inline-block;
+}
+
+.qr-container img {
+  display: block;
+}
+
+.qr-container canvas,
+.qr-container table {
+  display: block;
+}
+
+.portal-password-row {
+  width: 100%;
+  max-width: 260px;
+  text-align: center;
+}
+
+.portal-hint {
+  max-width: 260px;
+  text-align: center;
+  font-size: 12px;
+  line-height: 1.4;
+  opacity: 0.75;
+}
+
+.voucher-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  background-color: rgba(255, 255, 255, 0.05);
+  border-radius: 4px;
+  border-left: 3px solid rgba(255, 255, 255, 0.2);
+  margin-top: 10px;
+}
+
+.voucher-section .label {
+  font-size: 12px;
+  opacity: 0.7;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.voucher-section .label.warning {
+  color: #ffb74d;
+}
+
+.voucher-code {
+  font-size: 16px;
+  font-weight: 500;
+  letter-spacing: 1px;
+  font-family: "Courier New", monospace;
+  padding: 8px;
+  background-color: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  text-align: center;
+}
+
+/* Responsive adjustments */
+@media (max-width: 600px) {
+  .guest-wifi-container.horizontal .content-wrapper {
+    flex-direction: column;
+  }
+
+  .qr-container {
+    width: 120px;
+    height: 120px;
+  }
+
+  .mmm-unifi-guestwifi {
+    padding: 10px;
+  }
+
+  .ssid-row,
+  .password-row {
+    font-size: 12px;
+  }
+
+  .voucher-code {
+    font-size: 14px;
+  }
+}
