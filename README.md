@@ -169,8 +169,8 @@ WiFi standard detection behavior:
     title: "Guest WiFi",
     layoutVertical: true,
     maskPassword: false,
-    qrSize: 150
-  }
+    qrSize: 150,
+  },
 }
 ```
 
@@ -188,8 +188,8 @@ WiFi standard detection behavior:
     isHidden: false,
     showPassword: false, // Password field will be hidden
     title: "Free WiFi",
-    layoutVertical: true
-  }
+    layoutVertical: true,
+  },
 }
 ```
 
@@ -207,8 +207,8 @@ WiFi standard detection behavior:
     isHidden: true,
     maskPassword: true, // Password will show as dots
     title: "Enterprise Network",
-    layoutVertical: false // Horizontal layout
-  }
+    layoutVertical: false, // Horizontal layout
+  },
 }
 ```
 
@@ -229,8 +229,8 @@ WiFi standard detection behavior:
     title: "Guest WiFi",
     showVoucher: true,
     voucherLabel: "Voucher Code",
-    includeHotspotPassword: true
-  }
+    includeHotspotPassword: true,
+  },
 }
 ```
 
@@ -252,8 +252,8 @@ WiFi standard detection behavior:
     securityType: "WPA2",
     // Display options
     layoutVertical: true,
-    refreshInterval: 600000 // 10 minutes
-  }
+    refreshInterval: 600000, // 10 minutes
+  },
 }
 ```
 
@@ -270,8 +270,8 @@ WiFi standard detection behavior:
     apiKeyHeader: "X-API-Key",
     site: "default",
     verifySSL: false,
-    refreshInterval: 300000
-  }
+    refreshInterval: 300000,
+  },
 }
 ```
 
@@ -288,8 +288,8 @@ WiFi standard detection behavior:
     controllerPassword: "your_unifi_password",
     site: "default",
     verifySSL: false,
-    refreshInterval: 300000
-  }
+    refreshInterval: 300000,
+  },
 }
 ```
 
@@ -308,8 +308,8 @@ WiFi standard detection behavior:
     controllerPassword: "your_unifi_password",
     site: "default",
     verifySSL: false,
-    refreshInterval: 300000
-  }
+    refreshInterval: 300000,
+  },
 }
 ```
 
