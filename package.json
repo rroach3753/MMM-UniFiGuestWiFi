@@ -1,7 +1,9 @@
 {
+  "type": "commonjs",
   "name": "mmm-unifiguestwifi",
   "version": "1.0.0",
   "description": "MagicMirror module for displaying UniFi guest WiFi network details and connection information",
+  "author": "Rickey Roach",
   "main": "MMM-UniFiGuestWiFi.js",
   "license": "MIT",
   "keywords": [
@@ -12,6 +14,7 @@
     "guest",
     "QR code"
   ],
+  "homepage": "https://github.com/rroach3753/MMM-UniFiGuestWiFi",
   "repository": {
     "type": "git",
     "url": "https://github.com/rroach3753/MMM-UniFiGuestWiFi.git"
@@ -21,5 +24,8 @@
   },
   "devDependencies": {
     "eslint": "^10.3.0"
+  },
+  "bugs": {
+    "url": "https://github.com/rroach3753/MMM-UniFiGuestWiFi/issues"
   }
 }

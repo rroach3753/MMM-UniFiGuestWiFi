@@ -93,7 +93,7 @@ module.exports = NodeHelper.create({
   async handleConfig(config) {
     const normalizedConfig = this.normalizeConfig(config || {});
     const authMode = normalizedConfig.authMode;
-    let wifiData = null;
+    let wifiData;
     let voucherData = {
       voucherCode: null,
       voucherStatus: null,
@@ -112,7 +112,7 @@ module.exports = NodeHelper.create({
           if (authMode === "auto" && hasCustomizedFallbackConfig(normalizedConfig)) {
             wifiData = this.getConfigBasedWiFi(normalizedConfig);
           } else {
-            throw new Error("API fetch failed and fallback config is still using default placeholder values.");
+            throw new Error("API fetch failed and fallback config is still using default placeholder values.", { cause: error });
           }
         }
       }
