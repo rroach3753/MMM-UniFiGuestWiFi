@@ -70,7 +70,7 @@ When an active voucher is available, the module shows the next voucher and hides
   position: "top_right",
   config: {
     // Configuration options here
-  }
+  },
 }
 ```
 
