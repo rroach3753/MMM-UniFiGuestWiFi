@@ -71,7 +71,7 @@ When an active voucher is available, the module shows the next voucher and hides
   config: {
     // Configuration options here
   },
-}
+},
 ```
 
 ### Configuration Options
