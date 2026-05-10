@@ -14,7 +14,8 @@ Module.register("MMM-UniFiGuestWiFi", {
     apiKey: "",
     apiKeyHeader: "X-API-Key",
     site: "default",
-    verifySSL: false,
+    verifySSL: true,
+    requestTimeout: 10000,
     refreshInterval: 300000,
     title: "Guest WiFi",
     layoutVertical: true,
@@ -95,19 +96,21 @@ Module.register("MMM-UniFiGuestWiFi", {
   },
 
   socketNotificationReceived: function (notification, payload) {
+    var data = payload || {};
+
     if (notification === "UNIFI_GUESTWIFI_DATA") {
       this.dataState = {
-        ssid: payload.ssid || null,
-        password: payload.password || null,
-        securityType: payload.securityType || "WPA",
-        wifiStandard: payload.wifiStandard || null,
-        isHidden: payload.isHidden || false,
-        qrString: payload.qrString || null,
-        qrImageDataUrl: payload.qrImageDataUrl || null,
-        voucherCode: payload.voucherCode || null,
-        voucherStatus: payload.voucherStatus || null,
-        hotspotPassword: payload.hotspotPassword || null,
-        fetchedAt: payload.fetchedAt || Date.now(),
+        ssid: data.ssid || null,
+        password: data.password || null,
+        securityType: data.securityType || "WPA",
+        wifiStandard: data.wifiStandard || null,
+        isHidden: data.isHidden || false,
+        qrString: data.qrString || null,
+        qrImageDataUrl: data.qrImageDataUrl || null,
+        voucherCode: data.voucherCode || null,
+        voucherStatus: data.voucherStatus || null,
+        hotspotPassword: data.hotspotPassword || null,
+        fetchedAt: data.fetchedAt || Date.now(),
         error: null,
         loading: false
       };
@@ -115,20 +118,211 @@ Module.register("MMM-UniFiGuestWiFi", {
       this.clearRetryTimer();
       this.updateDom(300);
     } else if (notification === "UNIFI_GUESTWIFI_ERROR") {
-      this.dataState.error = payload.error || "Unknown error";
+      this.dataState.error = data.error || "Unknown error";
       this.dataState.loading = false;
       this.clearRetryTimer();
       this.updateDom(300);
     }
   },
 
-  repeatChar: function (char, count) {
-    var value = "";
-    var index;
-    for (index = 0; index < count; index += 1) {
-      value += char;
+  isPasswordlessSecurity: function (securityType) {
+    return securityType === "OPEN" || securityType === "OWE" || securityType === "OWE_TRANSITION";
+  },
+
+  createStatusElement: function (className, message) {
+    var element = document.createElement("div");
+    element.className = className;
+    element.textContent = message;
+    return element;
+  },
+
+  createLabeledValueRow: function (rowClass, labelText, valueText) {
+    var row = document.createElement("div");
+    var label = document.createElement("span");
+    var value = document.createElement("span");
+
+    row.className = rowClass;
+    label.className = "label";
+    label.textContent = labelText;
+    value.className = "value";
+    value.textContent = valueText;
+
+    row.appendChild(label);
+    row.appendChild(value);
+
+    return {
+      row: row,
+      value: value
+    };
+  },
+
+  appendSSIDRow: function (container) {
+    var rowData;
+    var hiddenBadge;
+
+    if (!this.config.showSSID) {
+      return;
     }
-    return value;
+
+    rowData = this.createLabeledValueRow("ssid-row", "Network:", this.dataState.ssid);
+
+    if (this.dataState.isHidden) {
+      hiddenBadge = document.createElement("span");
+      rowData.value.appendChild(document.createElement("br"));
+      hiddenBadge.className = "hidden-badge";
+      hiddenBadge.textContent = "(Hidden)";
+      rowData.value.appendChild(hiddenBadge);
+    }
+
+    container.appendChild(rowData.row);
+  },
+
+  appendSecurityMetaRow: function (container) {
+    var securityMetaRow;
+    var securityEl;
+    var securityBadge;
+    var securityTypeText;
+    var wifiStandardEl;
+    var wifiStandardBadge;
+
+    if (!this.config.showSecurityType && !(this.config.showWiFiStandard && this.dataState.wifiStandard)) {
+      return;
+    }
+
+    securityMetaRow = document.createElement("div");
+    securityMetaRow.className = "security-meta-row";
+
+    if (this.config.showSecurityType) {
+      securityEl = document.createElement("div");
+      securityBadge = document.createElement("span");
+      securityTypeText = String(this.dataState.securityType || "OPEN");
+
+      securityEl.className = "security-row";
+      securityBadge.className = "security-badge security-" + securityTypeText.toLowerCase();
+      securityBadge.textContent = securityTypeText.replace(/_/g, " ");
+      securityEl.appendChild(securityBadge);
+      securityMetaRow.appendChild(securityEl);
+    }
+
+    if (this.config.showWiFiStandard && this.dataState.wifiStandard) {
+      wifiStandardEl = document.createElement("div");
+      wifiStandardBadge = document.createElement("span");
+
+      wifiStandardEl.className = "wifi-standard-row";
+      wifiStandardBadge.className = "wifi-standard-badge";
+      wifiStandardBadge.textContent = this.dataState.wifiStandard;
+
+      wifiStandardEl.appendChild(wifiStandardBadge);
+      securityMetaRow.appendChild(wifiStandardEl);
+    }
+
+    container.appendChild(securityMetaRow);
+  },
+
+  appendPasswordRow: function (container) {
+    var rowData;
+
+    if (!this.config.showPassword || !this.dataState.password || this.isPasswordlessSecurity(this.dataState.securityType)) {
+      return;
+    }
+
+    rowData = this.createLabeledValueRow("password-row", "Password:", "");
+    if (this.config.maskPassword) {
+      rowData.value.textContent = "•".repeat(Math.min(this.dataState.password.length, 12));
+    } else {
+      rowData.value.textContent = this.dataState.password;
+    }
+
+    container.appendChild(rowData.row);
+  },
+
+  createQRCodeSection: function () {
+    var qrSection;
+    var qrContainer;
+    var qrImage;
+    var portalPwdWrap;
+    var portalPwdLabel;
+    var portalPwdValue;
+    var portalHint;
+
+    if (!this.dataState.qrImageDataUrl && !this.dataState.qrString) {
+      return null;
+    }
+
+    qrSection = document.createElement("div");
+    qrContainer = document.createElement("div");
+
+    qrSection.className = "qr-section";
+    qrContainer.className = "qr-container";
+
+    if (this.dataState.qrImageDataUrl) {
+      qrImage = document.createElement("img");
+      qrImage.src = this.dataState.qrImageDataUrl;
+      qrImage.alt = "QR code for " + this.dataState.ssid;
+      qrImage.width = this.config.qrSize;
+      qrImage.height = this.config.qrSize;
+      qrContainer.appendChild(qrImage);
+    }
+
+    qrSection.appendChild(qrContainer);
+
+    if (this.dataState.hotspotPassword && this.config.includeHotspotPassword) {
+      portalPwdWrap = document.createElement("div");
+      portalPwdLabel = document.createElement("div");
+      portalPwdValue = document.createElement("div");
+
+      portalPwdWrap.className = "portal-password-row";
+      portalPwdLabel.className = "label";
+      portalPwdLabel.textContent = "Portal Password:";
+      portalPwdValue.className = "voucher-code";
+      portalPwdValue.textContent = this.dataState.hotspotPassword;
+
+      portalPwdWrap.appendChild(portalPwdLabel);
+      portalPwdWrap.appendChild(portalPwdValue);
+      qrSection.appendChild(portalPwdWrap);
+    }
+
+    if (this.config.captivePortalHint) {
+      portalHint = document.createElement("div");
+      portalHint.className = "portal-hint";
+      portalHint.textContent = this.config.captivePortalHint;
+      qrSection.appendChild(portalHint);
+    }
+
+    return qrSection;
+  },
+
+  createVoucherSection: function () {
+    var voucherSection;
+    var voucherLabel;
+    var voucherCode;
+    var noVouchersLabel;
+
+    if (!this.config.showVoucher) {
+      return null;
+    }
+
+    voucherSection = document.createElement("div");
+    voucherSection.className = "voucher-section";
+
+    if (this.dataState.voucherCode) {
+      voucherLabel = document.createElement("div");
+      voucherCode = document.createElement("div");
+
+      voucherLabel.className = "label";
+      voucherLabel.textContent = this.config.voucherLabel;
+      voucherCode.className = "voucher-code";
+      voucherCode.textContent = this.dataState.voucherCode;
+      voucherSection.appendChild(voucherLabel);
+      voucherSection.appendChild(voucherCode);
+    } else if (this.dataState.hotspotPassword && this.config.includeHotspotPassword) {
+      noVouchersLabel = document.createElement("div");
+      noVouchersLabel.className = "label warning";
+      noVouchersLabel.textContent = this.config.noVouchersMessage;
+      voucherSection.appendChild(noVouchersLabel);
+    }
+
+    return voucherSection.children.length > 0 ? voucherSection : null;
   },
 
   getDom: function () {
@@ -136,21 +330,23 @@ Module.register("MMM-UniFiGuestWiFi", {
     var container;
     var contentWrapper;
     var infoSection;
+    var qrSection;
+    var voucherSection;
 
     wrapper.className = "mmm-unifi-guestwifi";
 
     if (this.dataState.loading) {
-      wrapper.innerHTML = '<div class="message">' + this.config.loadingMessage + "</div>";
+      wrapper.appendChild(this.createStatusElement("message", this.config.loadingMessage));
       return wrapper;
     }
 
     if (this.dataState.error) {
-      wrapper.innerHTML = '<div class="error">' + this.dataState.error + "</div>";
+      wrapper.appendChild(this.createStatusElement("error", this.dataState.error));
       return wrapper;
     }
 
     if (!this.dataState.ssid) {
-      wrapper.innerHTML = '<div class="message">' + this.config.emptyMessage + "</div>";
+      wrapper.appendChild(this.createStatusElement("message", this.config.emptyMessage));
       return wrapper;
     }
 
@@ -170,154 +366,22 @@ Module.register("MMM-UniFiGuestWiFi", {
     infoSection = document.createElement("div");
     infoSection.className = "info-section";
 
-    if (this.config.showSSID) {
-      var ssidEl = document.createElement("div");
-      var ssidLabel = document.createElement("span");
-      var ssidValue = document.createElement("span");
-
-      ssidEl.className = "ssid-row";
-      ssidLabel.className = "label";
-      ssidLabel.textContent = "Network:";
-      ssidValue.className = "value";
-      ssidValue.textContent = this.dataState.ssid;
-
-      if (this.dataState.isHidden) {
-        var hiddenBadge = document.createElement("span");
-        ssidValue.appendChild(document.createElement("br"));
-        hiddenBadge.className = "hidden-badge";
-        hiddenBadge.textContent = "(Hidden)";
-        ssidValue.appendChild(hiddenBadge);
-      }
-
-      ssidEl.appendChild(ssidLabel);
-      ssidEl.appendChild(ssidValue);
-      infoSection.appendChild(ssidEl);
-    }
-
-    if (this.config.showSecurityType || (this.config.showWiFiStandard && this.dataState.wifiStandard)) {
-      var securityMetaRow = document.createElement("div");
-      securityMetaRow.className = "security-meta-row";
-
-      if (this.config.showSecurityType) {
-        var securityEl = document.createElement("div");
-        var securityBadge = document.createElement("span");
-        var securityTypeText = String(this.dataState.securityType || "OPEN");
-
-        securityEl.className = "security-row";
-        securityBadge.className = "security-badge security-" + securityTypeText.toLowerCase();
-        securityBadge.textContent = securityTypeText.replace(/_/g, " ");
-        securityEl.appendChild(securityBadge);
-        securityMetaRow.appendChild(securityEl);
-      }
-
-      if (this.config.showWiFiStandard && this.dataState.wifiStandard) {
-        var wifiStandardEl = document.createElement("div");
-        var wifiStandardBadge = document.createElement("span");
-
-        wifiStandardEl.className = "wifi-standard-row";
-        wifiStandardBadge.className = "wifi-standard-badge";
-        wifiStandardBadge.textContent = this.dataState.wifiStandard;
-
-        wifiStandardEl.appendChild(wifiStandardBadge);
-        securityMetaRow.appendChild(wifiStandardEl);
-      }
-
-      infoSection.appendChild(securityMetaRow);
-    }
-
-    if (this.config.showPassword && this.dataState.password && this.dataState.securityType !== "OPEN" && this.dataState.securityType !== "OWE" && this.dataState.securityType !== "OWE_TRANSITION") {
-      var passwordEl = document.createElement("div");
-      var passwordLabel = document.createElement("span");
-      var passwordValue = document.createElement("span");
-
-      passwordEl.className = "password-row";
-      passwordLabel.className = "label";
-      passwordLabel.textContent = "Password:";
-      passwordValue.className = "value";
-
-      if (this.config.maskPassword) {
-        passwordValue.textContent = this.repeatChar("•", Math.min(this.dataState.password.length, 12));
-      } else {
-        passwordValue.textContent = this.dataState.password;
-      }
-
-      passwordEl.appendChild(passwordLabel);
-      passwordEl.appendChild(passwordValue);
-      infoSection.appendChild(passwordEl);
-    }
+    this.appendSSIDRow(infoSection);
+    this.appendSecurityMetaRow(infoSection);
+    this.appendPasswordRow(infoSection);
 
     contentWrapper.appendChild(infoSection);
 
-    if (this.dataState.qrImageDataUrl || this.dataState.qrString) {
-      var qrSection = document.createElement("div");
-      var qrContainer = document.createElement("div");
-
-      qrSection.className = "qr-section";
-      qrContainer.className = "qr-container";
-
-      if (this.dataState.qrImageDataUrl) {
-        var qrImage = document.createElement("img");
-        qrImage.src = this.dataState.qrImageDataUrl;
-        qrImage.alt = "QR code for " + this.dataState.ssid;
-        qrImage.width = this.config.qrSize;
-        qrImage.height = this.config.qrSize;
-        qrContainer.appendChild(qrImage);
-      }
-
-      qrSection.appendChild(qrContainer);
-
-      if (this.dataState.hotspotPassword && this.config.includeHotspotPassword) {
-        var portalPwdWrap = document.createElement("div");
-        var portalPwdLabel = document.createElement("div");
-        var portalPwdValue = document.createElement("div");
-
-        portalPwdWrap.className = "portal-password-row";
-        portalPwdLabel.className = "label";
-        portalPwdLabel.textContent = "Portal Password:";
-        portalPwdValue.className = "voucher-code";
-        portalPwdValue.textContent = this.dataState.hotspotPassword;
-
-        portalPwdWrap.appendChild(portalPwdLabel);
-        portalPwdWrap.appendChild(portalPwdValue);
-        qrSection.appendChild(portalPwdWrap);
-      }
-
-      if (this.config.captivePortalHint) {
-        var portalHint = document.createElement("div");
-        portalHint.className = "portal-hint";
-        portalHint.textContent = this.config.captivePortalHint;
-        qrSection.appendChild(portalHint);
-      }
-
+    qrSection = this.createQRCodeSection();
+    if (qrSection) {
       contentWrapper.appendChild(qrSection);
     }
 
     container.appendChild(contentWrapper);
 
-    if (this.config.showVoucher) {
-      var voucherSection = document.createElement("div");
-      voucherSection.className = "voucher-section";
-
-      if (this.dataState.voucherCode) {
-        var voucherLabel = document.createElement("div");
-        var voucherCode = document.createElement("div");
-
-        voucherLabel.className = "label";
-        voucherLabel.textContent = this.config.voucherLabel;
-        voucherCode.className = "voucher-code";
-        voucherCode.textContent = this.dataState.voucherCode;
-        voucherSection.appendChild(voucherLabel);
-        voucherSection.appendChild(voucherCode);
-      } else if (this.dataState.hotspotPassword && this.config.includeHotspotPassword) {
-        var noVouchersLabel = document.createElement("div");
-        noVouchersLabel.className = "label warning";
-        noVouchersLabel.textContent = this.config.noVouchersMessage;
-        voucherSection.appendChild(noVouchersLabel);
-      }
-
-      if (voucherSection.children.length > 0) {
-        container.appendChild(voucherSection);
-      }
+    voucherSection = this.createVoucherSection();
+    if (voucherSection) {
+      container.appendChild(voucherSection);
     }
 
     wrapper.appendChild(container);
