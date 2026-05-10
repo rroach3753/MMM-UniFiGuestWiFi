@@ -4,18 +4,29 @@ A [MagicMirror²](https://github.com/MagicMirrorOrg/MagicMirror) module for disp
 
 ## Features
 
-- **Multiple Data Sources**: Fetch guest/hotspot WiFi details from UniFi controller API or use configuration-based settings
-- **Flexible Authentication**: API key first with automatic controller-login fallback when credentials are provided
-- **WiFi Security Support**: Open, OWE, OWE Transition, WPA, WPA2, and WPA3 networks
-- **WiFi Standard Badge**: Displays WiFi generation badge (WiFi 4/5/6/6E/7) when detectable
-- **Enhanced WiFi Detection Mode**: Optional AP-capability-based detection to improve WiFi 7 classification
-- **Backend QR Generation**: Server-side QR image generation for reliable rendering on older Electron runtimes
-- **Captive Portal Friendly QR**: QR payload joins SSID only (portal password is displayed in UI, not embedded in QR)
-- **Voucher Integration**: Displays next available active voucher code from direct API query
-- **Fallback Support**: Shows hotspot portal password when no vouchers are available
-- **Password Masking**: Optional password display masking in the UI (for protected networks)
-- **Responsive Layouts**: Vertical (default) or horizontal layout options
-- **Customizable Styling**: QR code size, colors, and display options
+- **Multiple Data Sources**:
+    - Fetch guest/hotspot WiFi details from UniFi controller API or use configuration-based settings
+- **Flexible Authentication**:
+    - API key first with automatic controller-login fallback when credentials are provided
+- **WiFi Security Support**:
+    - Open, OWE, OWE Transition, WPA, WPA2, and WPA3 networks
+- **WiFi Standard Badge**:
+    - Displays WiFi generation badge (WiFi 4/5/6/6E/7) when detectable
+- **Enhanced WiFi Detection Mode**:
+    - Optional AP-capability-based detection to improve WiFi 7 classification
+- **Backend QR Generation**:
+    - Server-side QR image generation for reliable rendering on older Electron runtimes
+- **Captive Portal Friendly QR**:
+    - QR payload joins SSID only (portal password is displayed in UI, not embedded in QR)
+- **Voucher Integration**:
+    - Displays next available active voucher code from direct API query
+- **Fallback Support**:
+    - Shows hotspot portal password when no vouchers are available
+- **Password Masking**:
+    - Optional password display masking in the UI (for protected networks)
+- **Responsive Layouts**:Vertical (default) or horizontal layout options
+- **Customizable Styling**:
+    - QR code size, colors, and display options
 
 ## Prerequisites
 
