@@ -4,6 +4,8 @@ const https = require("node:https");
 const QRCode = require("qrcode");
 const { URL } = require("node:url");
 
+const DEFAULT_REQUEST_TIMEOUT_MS = 10000;
+
 function normalizeBoolean(value, fallback) {
   if (value === undefined || value === null) {
     return fallback;
@@ -62,6 +64,38 @@ function resolveControllerPassword(config) {
   );
 }
 
+function normalizeAuthMode(value, fallbackMode) {
+  const normalized = normalizeString(value, fallbackMode).toLowerCase();
+  return normalized === "api" ? "auto" : normalized;
+}
+
+function getRequestAuthContext(config, fallbackMode) {
+  return {
+    authMode: normalizeAuthMode(config.authMode, fallbackMode || "auto"),
+    apiKey: normalizeString(config.apiKey, ""),
+    apiKeyHeader: normalizeString(config.apiKeyHeader, "X-API-Key"),
+    username: normalizeString(config.username, ""),
+    password: resolveControllerPassword(config)
+  };
+}
+
+function validateRequestAuth(authContext) {
+  if (authContext.authMode === "apikey" && !authContext.apiKey) {
+    throw new Error("Missing apiKey in MMM-UniFiGuestWiFi config when authMode is set to apikey.");
+  }
+
+  if (authContext.authMode === "login" && (!authContext.username || !authContext.password)) {
+    throw new Error("Missing username or password in MMM-UniFiGuestWiFi config when authMode is set to login.");
+  }
+}
+
+function flattenSignalValues(values) {
+  return values
+    .map((value) => String(value == null ? "" : value).toLowerCase())
+    .filter(Boolean)
+    .join(" ");
+}
+
 function hasCustomizedFallbackConfig(config) {
   const ssid = normalizeString(config.ssid, "");
   const password = normalizeString(config.password, "");
@@ -80,8 +114,69 @@ function hasCustomizedFallbackConfig(config) {
 module.exports = NodeHelper.create({
   start() {
     this.refreshTimers = {};
-    this.sessionCookies = [];
+    this.sessionCookiesByContext = {};
     console.log("[MMM-UniFiGuestWiFi] Node helper started");
+  },
+
+  getSessionContextKey(config) {
+    return JSON.stringify({
+      controllerUrl: normalizeString(config.controllerUrl, ""),
+      site: normalizeString(config.site, "default"),
+      username: normalizeString(config.username, "")
+    });
+  },
+
+  getSessionCookies(config) {
+    const contextKey = this.getSessionContextKey(config);
+    return this.sessionCookiesByContext[contextKey] || [];
+  },
+
+  setSessionCookies(config, cookies) {
+    const contextKey = this.getSessionContextKey(config);
+    this.sessionCookiesByContext[contextKey] = Array.isArray(cookies) ? cookies : [];
+  },
+
+  clearSessionCookies(config) {
+    const contextKey = this.getSessionContextKey(config);
+    this.sessionCookiesByContext[contextKey] = [];
+  },
+
+  async fetchRecordsWithAuth(config, options) {
+    const requestOptions = options || {};
+    const endpoints = requestOptions.endpoints || [];
+    const fetcher = requestOptions.fetcher;
+    const returnEmptyIfApiKeyOnly = Boolean(requestOptions.returnEmptyIfApiKeyOnly);
+
+    const auth = getRequestAuthContext(config, "auto");
+    validateRequestAuth(auth);
+
+    if (auth.apiKey && (auth.authMode === "auto" || auth.authMode === "apikey")) {
+      try {
+        const apiRecords = await fetcher({
+          apiKey: auth.apiKey,
+          apiKeyHeader: auth.apiKeyHeader
+        }, endpoints);
+
+        if (apiRecords.length > 0) {
+          return apiRecords;
+        }
+      } catch (error) {
+        if (auth.authMode === "apikey") {
+          throw error;
+        }
+      }
+    }
+
+    if (!auth.username || !auth.password) {
+      if (returnEmptyIfApiKeyOnly && auth.apiKey) {
+        return [];
+      }
+
+      throw new Error("Missing username or password in MMM-UniFiGuestWiFi config.");
+    }
+
+    await this.login(config, auth.username, auth.password);
+    return fetcher({ cookies: true }, endpoints);
   },
 
   socketNotificationReceived(notification, payload) {
@@ -141,10 +236,10 @@ module.exports = NodeHelper.create({
       console.log(
         "[MMM-UniFiGuestWiFi] Sending data - SSID:",
         response.ssid,
-        "VoucherCode:",
-        response.voucherCode,
-        "HotspotPassword:",
-        response.hotspotPassword ? "***" : "null"
+        "VoucherAvailable:",
+        Boolean(response.voucherCode),
+        "HotspotPasswordAvailable:",
+        Boolean(response.hotspotPassword)
       );
 
       this.sendSocketNotification("UNIFI_GUESTWIFI_DATA", response);
@@ -175,7 +270,8 @@ module.exports = NodeHelper.create({
       apiKey: normalizeString(config.apiKey, ""),
       apiKeyHeader: normalizeString(config.apiKeyHeader, "X-API-Key"),
       site: normalizeString(config.site, "default"),
-      verifySSL: normalizeBoolean(config.verifySSL, false),
+      verifySSL: normalizeBoolean(config.verifySSL, true),
+      requestTimeout: Math.max(1000, normalizeNumber(config.requestTimeout, DEFAULT_REQUEST_TIMEOUT_MS)),
       refreshInterval: normalizeNumber(config.refreshInterval, 300000),
       enhancedWiFiStandardDetection: normalizeBoolean(config.enhancedWiFiStandardDetection, true),
       maskPassword: normalizeBoolean(config.maskPassword, false)
@@ -200,9 +296,7 @@ module.exports = NodeHelper.create({
     };
   },
 
-  generateQRString(ssid, password, securityType, isHidden) {
-    void password;
-    void isHidden;
+  generateQRString(ssid, _password, securityType, _isHidden) {
 
     // Captive portal flow: encode only network join metadata.
     const limitedSSID = limitUtf8Bytes(ssid, 32);
@@ -392,38 +486,11 @@ module.exports = NodeHelper.create({
       `/api/s/${site}/stat/device`
     ];
 
-    let authMode = normalizeString(config.authMode, "auto").toLowerCase();
-    if (authMode === "api") {
-      authMode = "auto";
-    }
-
-    const apiKey = normalizeString(config.apiKey, "");
-    const username = normalizeString(config.username, "");
-    const password = resolveControllerPassword(config);
-
-    if (apiKey && (authMode === "auto" || authMode === "apikey")) {
-      try {
-        const records = await this.fetchRecordsFromAnyEndpoint(config, endpoints, {
-          apiKey,
-          apiKeyHeader: normalizeString(config.apiKeyHeader, "X-API-Key")
-        });
-
-        if (records.length > 0) {
-          return records;
-        }
-      } catch (error) {
-        if (authMode === "apikey") {
-          throw error;
-        }
-      }
-    }
-
-    if (!username || !password) {
-      return [];
-    }
-
-    await this.login(config, username, password);
-    return this.fetchRecordsFromAnyEndpoint(config, endpoints, { cookies: this.sessionCookies });
+    return this.fetchRecordsWithAuth(config, {
+      endpoints,
+      returnEmptyIfApiKeyOnly: true,
+      fetcher: (authOptions, endpointList) => this.fetchRecordsFromAnyEndpoint(config, endpointList, authOptions)
+    });
   },
 
   mapSecurityType(network) {
@@ -453,7 +520,7 @@ module.exports = NodeHelper.create({
       .map((value) => String(value == null ? "" : value).toLowerCase())
       .some((value) => ["true", "1", "on", "enabled", "owe", "enhanced_open", "enhanced open"].includes(value));
 
-    const tertiarySignals = [
+    const tertiarySignals = flattenSignalValues([
       network.akm,
       network.akms,
       network.auth_mode,
@@ -481,24 +548,18 @@ module.exports = NodeHelper.create({
       network.ccmp,
       network.cipher,
       network.ciphers
-    ]
-      .map((value) => String(value == null ? "" : value).toLowerCase())
-      .filter(Boolean)
-      .join(" ");
+    ]);
 
-    const primarySignals = [
+    const primarySignals = flattenSignalValues([
       network.security,
       network.security_protocol,
       network.security_mode,
       network.securityMode,
       network.auth,
       network.encryption
-    ]
-      .map((value) => String(value == null ? "" : value).toLowerCase())
-      .filter(Boolean)
-      .join(" ");
+    ]);
 
-    const secondarySignals = [
+    const secondarySignals = flattenSignalValues([
       network.wpa_mode,
       network.wpaMode,
       network.group_rekey,
@@ -514,10 +575,7 @@ module.exports = NodeHelper.create({
       network.enhancedOpenTransitionMode,
       network.transition_mode,
       network.transitionMode
-    ]
-      .map((value) => String(value == null ? "" : value).toLowerCase())
-      .filter(Boolean)
-      .join(" ");
+    ]);
 
     const securitySignals = [primarySignals, secondarySignals, tertiarySignals].filter(Boolean).join(" ");
 
@@ -662,55 +720,11 @@ module.exports = NodeHelper.create({
   },
 
   async fetchFirstSuccessfulNetworkRecords(config, endpoints) {
-    let authMode = normalizeString(config.authMode, "auto").toLowerCase();
-    if (authMode === "api") {
-      authMode = "auto";
-    }
-
-    const apiKey = normalizeString(config.apiKey, "");
-    const username = normalizeString(config.username, "");
-    const password = resolveControllerPassword(config);
-
-    if (authMode === "apikey" && !apiKey) {
-      throw new Error("Missing apiKey in MMM-UniFiGuestWiFi config when authMode is set to apikey.");
-    }
-
-    if (authMode === "login" && (!username || !password)) {
-      throw new Error("Missing username or password in MMM-UniFiGuestWiFi config when authMode is set to login.");
-    }
-
-    if (apiKey && (authMode === "auto" || authMode === "apikey")) {
-      try {
-        const records = await this.fetchNetworkEndpoints(
-          config,
-          endpoints,
-          {
-            apiKey,
-            apiKeyHeader: normalizeString(config.apiKeyHeader, "X-API-Key")
-          },
-          false
-        );
-
-        if (records.length > 0) {
-          return records;
-        }
-      } catch (error) {
-        if (authMode === "apikey") {
-          throw error;
-        }
-      }
-    }
-
-    if (!username || !password) {
-      if (apiKey) {
-        return [];
-      }
-
-      throw new Error("Missing username or password in MMM-UniFiGuestWiFi config.");
-    }
-
-    await this.login(config, username, password);
-    return this.fetchNetworkEndpoints(config, endpoints, { cookies: this.sessionCookies }, false);
+    return this.fetchRecordsWithAuth(config, {
+      endpoints,
+      returnEmptyIfApiKeyOnly: true,
+      fetcher: (authOptions, endpointList) => this.fetchNetworkEndpoints(config, endpointList, authOptions, false)
+    });
   },
 
   async fetchNetworkEndpoints(config, endpoints, authOptions, hasRetriedAuthFailure) {
@@ -742,7 +756,7 @@ module.exports = NodeHelper.create({
   },
 
   async retryNetworkFetchAfterReauth(config, endpoints, authOptions) {
-    this.sessionCookies = [];
+    this.clearSessionCookies(config);
 
     await this.login(
       config,
@@ -754,7 +768,7 @@ module.exports = NodeHelper.create({
       config,
       endpoints,
       {
-        cookies: this.sessionCookies,
+        cookies: true,
         apiKey: authOptions && authOptions.apiKey,
         apiKeyHeader: authOptions && authOptions.apiKeyHeader
       },
@@ -937,9 +951,9 @@ module.exports = NodeHelper.create({
       ? response.headers["set-cookie"]
       : [];
 
-    this.sessionCookies = cookies.map((cookie) => cookie.split(";")[0]).filter(Boolean);
+    this.setSessionCookies(config, cookies.map((cookie) => cookie.split(";")[0]).filter(Boolean));
 
-    if (!this.sessionCookies.length) {
+    if (!this.getSessionCookies(config).length) {
       throw new Error("UniFi login did not return a session cookie.");
     }
   },
@@ -951,8 +965,9 @@ module.exports = NodeHelper.create({
     const headers = Object.assign({}, extraHeaders || {});
     const options = authOptions || {};
 
-    if (options.cookies && this.sessionCookies.length) {
-      headers.Cookie = this.sessionCookies.join("; ");
+    const requestCookies = options.cookies ? this.getSessionCookies(config) : [];
+    if (requestCookies.length) {
+      headers.Cookie = requestCookies.join("; ");
     }
 
     if (options.apiKey) {
@@ -973,7 +988,7 @@ module.exports = NodeHelper.create({
         {
           method,
           headers,
-          rejectUnauthorized: normalizeBoolean(config.verifySSL, false)
+          rejectUnauthorized: normalizeBoolean(config.verifySSL, true)
         },
         (response) => {
           let raw = "";
@@ -1004,6 +1019,11 @@ module.exports = NodeHelper.create({
           });
         }
       );
+
+      const timeoutMs = Math.max(1000, normalizeNumber(config.requestTimeout, DEFAULT_REQUEST_TIMEOUT_MS));
+      request.setTimeout(timeoutMs, () => {
+        request.destroy(new Error(`UniFi request timed out after ${timeoutMs}ms`));
+      });
 
       request.on("error", (error) => reject(error));
 
@@ -1071,54 +1091,11 @@ module.exports = NodeHelper.create({
   },
 
   async fetchVoucherEndpoints(config, endpoints) {
-    let authMode = normalizeString(config.authMode, "auto").toLowerCase();
-    if (authMode === "api") {
-      authMode = "auto";
-    }
-
-    const apiKey = normalizeString(config.apiKey, "");
-    const username = normalizeString(config.username, "");
-    const password = resolveControllerPassword(config);
-
-    if (authMode === "apikey" && !apiKey) {
-      throw new Error("Missing apiKey in MMM-UniFiGuestWiFi config when authMode is set to apikey.");
-    }
-
-    if (authMode === "login" && (!username || !password)) {
-      throw new Error("Missing username or password in MMM-UniFiGuestWiFi config when authMode is set to login.");
-    }
-
-    if (apiKey && (authMode === "auto" || authMode === "apikey")) {
-      try {
-        const records = await this.fetchRecordsFromAnyEndpoint(
-          config,
-          endpoints,
-          {
-            apiKey,
-            apiKeyHeader: normalizeString(config.apiKeyHeader, "X-API-Key")
-          }
-        );
-
-        if (records.length) {
-          return records;
-        }
-      } catch (error) {
-        if (authMode === "apikey") {
-          throw error;
-        }
-      }
-    }
-
-    if (!username || !password) {
-      if (apiKey) {
-        return [];
-      }
-
-      throw new Error("Missing username or password in MMM-UniFiGuestWiFi config.");
-    }
-
-    await this.login(config, username, password);
-    return this.fetchRecordsFromAnyEndpoint(config, endpoints, { cookies: this.sessionCookies });
+    return this.fetchRecordsWithAuth(config, {
+      endpoints,
+      returnEmptyIfApiKeyOnly: true,
+      fetcher: (authOptions, endpointList) => this.fetchRecordsFromAnyEndpoint(config, endpointList, authOptions)
+    });
   },
 
   async fetchRecordsFromAnyEndpoint(config, endpoints, authOptions) {
@@ -1221,21 +1198,14 @@ module.exports = NodeHelper.create({
       return null;
     };
 
-    let authMode = normalizeString(config.authMode, "auto").toLowerCase();
-    if (authMode === "api") {
-      authMode = "auto";
-    }
+    const auth = getRequestAuthContext(config, "auto");
 
-    const apiKey = normalizeString(config.apiKey, "");
-    const username = normalizeString(config.username, "");
-    const password = resolveControllerPassword(config);
-
-    if (apiKey && (authMode === "auto" || authMode === "apikey")) {
+    if (auth.apiKey && (auth.authMode === "auto" || auth.authMode === "apikey")) {
       for (const endpoint of endpoints) {
         try {
           const response = await this.requestJson("GET", config, endpoint, null, null, {
-            apiKey,
-            apiKeyHeader: normalizeString(config.apiKeyHeader, "X-API-Key")
+            apiKey: auth.apiKey,
+            apiKeyHeader: auth.apiKeyHeader
           });
 
           const passwordFromApiKey = parseHotspotPassword(response, endpoint);
@@ -1243,29 +1213,29 @@ module.exports = NodeHelper.create({
             return passwordFromApiKey;
           }
         } catch (error) {
-          if (authMode === "apikey" && !this.isAuthFailure(error)) {
+          if (auth.authMode === "apikey" && !this.isAuthFailure(error)) {
             throw error;
           }
         }
       }
     }
 
-    if (username && password) {
-      if (!this.sessionCookies.length) {
-        await this.login(config, username, password);
+    if (auth.username && auth.password) {
+      if (!this.getSessionCookies(config).length) {
+        await this.login(config, auth.username, auth.password);
       }
 
       for (const endpoint of endpoints) {
         try {
-          const response = await this.requestJson("GET", config, endpoint, null, null, { cookies: this.sessionCookies });
+          const response = await this.requestJson("GET", config, endpoint, null, null, { cookies: true });
           const passwordFromLogin = parseHotspotPassword(response, endpoint);
           if (passwordFromLogin) {
             return passwordFromLogin;
           }
         } catch (error) {
           if (this.isAuthFailure(error)) {
-            this.sessionCookies = [];
-            await this.login(config, username, password);
+            this.clearSessionCookies(config);
+            await this.login(config, auth.username, auth.password);
           }
         }
       }
@@ -1299,6 +1269,7 @@ module.exports = NodeHelper.create({
     });
 
     this.refreshTimers = {};
+    this.sessionCookiesByContext = {};
     console.log("[MMM-UniFiGuestWiFi] Timers cleaned up");
   }
 });
