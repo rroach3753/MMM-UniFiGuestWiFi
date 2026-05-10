@@ -135,18 +135,18 @@ WiFi standard detection behavior:
 | `title` | string | `"Guest WiFi"` | Module title |
 | `layoutVertical` | boolean | `true` | Display layout: `true` for vertical, `false` for horizontal |
 | `showSSID` | boolean | `true` | Show SSID/network name |
-| `showPassword` | boolean | `true` | Show password (if applicable) |
+| `showPassword` | boolean | `false` | Show password (if applicable) |
 | `showSecurityType` | boolean | `true` | Show security type badge |
 | `showWiFiStandard` | boolean | `true` | Show WiFi generation badge |
 | `showVoucher` | boolean | `true` | Show voucher code section |
-| `maskPassword` | boolean | `false` | Mask password display (asterisks/dots) - QR still contains actual password |
+| `maskPassword` | boolean | `true` | Mask password display (asterisks/dots) - QR still contains actual password |
 
 #### Voucher Options
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `voucherLabel` | string | `"Guest Code"` | Label for voucher code display |
-| `includeHotspotPassword` | boolean | `true` | Show hotspot portal password when no vouchers available |
+| `includeHotspotPassword` | boolean | `false` | Show hotspot portal password when no vouchers available |
 
 #### QR Code Options
 

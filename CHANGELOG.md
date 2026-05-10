@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Security
+- Frontend defaults now favor safer mirror displays: `showPassword: false`, `maskPassword: true`, and `includeHotspotPassword: false`.
+- Added instance-scoped socket payload routing (`instanceId`) between module frontend and node helper to reduce cross-instance data leakage.
+
+### Changed
+- Refresh timer keying now includes instance identity to avoid collisions across multiple module instances.
+
 ### Added
 - Backend-generated QR image support using server-side QR rendering for improved runtime compatibility.
 - WiFi standard badge support in the UI (`showWiFiStandard`) with labels such as WiFi 6E and WiFi 7 when detectable.

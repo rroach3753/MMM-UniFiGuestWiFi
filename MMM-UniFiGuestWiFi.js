@@ -20,14 +20,14 @@ Module.register("MMM-UniFiGuestWiFi", {
     title: "Guest WiFi",
     layoutVertical: true,
     showSSID: true,
-    showPassword: true,
+    showPassword: false,
     showSecurityType: true,
     showWiFiStandard: true,
     enhancedWiFiStandardDetection: true,
     showVoucher: true,
-    maskPassword: false,
+    maskPassword: true,
     voucherLabel: "Guest Code",
-    includeHotspotPassword: true,
+    includeHotspotPassword: false,
     qrSize: 150,
     colorDark: "#000000",
     colorLight: "#ffffff",
@@ -38,6 +38,7 @@ Module.register("MMM-UniFiGuestWiFi", {
   },
 
   start: function () {
+    this.instanceId = this.identifier || this.name;
     this.dataState = {
       ssid: null,
       password: null,
@@ -62,7 +63,10 @@ Module.register("MMM-UniFiGuestWiFi", {
   requestBackendData: function () {
     var self = this;
 
-    this.sendSocketNotification("UNIFI_GUESTWIFI_CONFIG", this.config);
+    this.sendSocketNotification("UNIFI_GUESTWIFI_CONFIG", {
+      ...this.config,
+      instanceId: this.instanceId
+    });
 
     if (this.configRetryTimer) {
       clearTimeout(this.configRetryTimer);
@@ -97,6 +101,10 @@ Module.register("MMM-UniFiGuestWiFi", {
 
   socketNotificationReceived: function (notification, payload) {
     var data = payload || {};
+
+    if (data.instanceId && data.instanceId !== this.instanceId) {
+      return;
+    }
 
     if (notification === "UNIFI_GUESTWIFI_DATA") {
       this.dataState = {

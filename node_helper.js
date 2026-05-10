@@ -230,6 +230,7 @@ module.exports = NodeHelper.create({
         ...wifiData,
         ...voucherData,
         fetchedAt: Date.now(),
+        instanceId: normalizedConfig.instanceId || null,
         error: null
       };
 
@@ -251,6 +252,7 @@ module.exports = NodeHelper.create({
     } catch (error) {
       console.error("[MMM-UniFiGuestWiFi] Error handling config:", error);
       this.sendSocketNotification("UNIFI_GUESTWIFI_ERROR", {
+        instanceId: normalizedConfig.instanceId || null,
         error: error.message || "Failed to retrieve WiFi details"
       });
     }
@@ -274,7 +276,8 @@ module.exports = NodeHelper.create({
       requestTimeout: Math.max(1000, normalizeNumber(config.requestTimeout, DEFAULT_REQUEST_TIMEOUT_MS)),
       refreshInterval: normalizeNumber(config.refreshInterval, 300000),
       enhancedWiFiStandardDetection: normalizeBoolean(config.enhancedWiFiStandardDetection, true),
-      maskPassword: normalizeBoolean(config.maskPassword, false)
+      maskPassword: normalizeBoolean(config.maskPassword, false),
+      instanceId: normalizeString(config.instanceId, "")
     };
   },
 
@@ -1240,6 +1243,7 @@ module.exports = NodeHelper.create({
 
   scheduleRefresh(config, interval) {
     const configKey = JSON.stringify({
+      instanceId: config.instanceId,
       url: config.controllerUrl,
       site: config.site,
       authMode: config.authMode,
