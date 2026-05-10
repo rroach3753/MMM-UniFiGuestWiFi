@@ -24,7 +24,8 @@ A [MagicMirror²](https://github.com/MagicMirrorOrg/MagicMirror) module for disp
     - Shows hotspot portal password when no vouchers are available
 - **Password Masking**:
     - Optional password display masking in the UI (for protected networks)
-- **Responsive Layouts**:Vertical (default) or horizontal layout options
+- **Responsive Layouts**:
+    - Vertical (default) or horizontal layout options
 - **Customizable Styling**:
     - QR code size, colors, and display options
 
