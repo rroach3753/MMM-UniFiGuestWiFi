@@ -102,7 +102,8 @@ When an active voucher is available, the module shows the next voucher and hides
 | `controllerPassword` | string | `""` | UniFi OS password (preferred field name) |
 | `passwordField` | string | `""` | Legacy alias for UniFi OS password (still supported) |
 | `site` | string | `"default"` | UniFi site name |
-| `verifySSL` | boolean | `false` | Verify SSL certificates |
+| `verifySSL` | boolean | `true` | Verify SSL certificates (recommended) |
+| `requestTimeout` | number | `10000` | HTTP request timeout in milliseconds |
 | `refreshInterval` | number | `300000` | Data refresh interval in milliseconds (5 minutes) |
 | `enhancedWiFiStandardDetection` | boolean | `true` | Use AP capability data (`stat/device`) to improve WiFi generation badging |
 
@@ -224,7 +225,7 @@ WiFi standard detection behavior:
     username: "admin",
     controllerPassword: "your_unifi_password",
     site: "default",
-    verifySSL: false,
+    verifySSL: true,
     refreshInterval: 300000,
     title: "Guest WiFi",
     showVoucher: true,
@@ -269,7 +270,7 @@ WiFi standard detection behavior:
     apiKey: "YOUR_UNIFI_API_KEY",
     apiKeyHeader: "X-API-Key",
     site: "default",
-    verifySSL: false,
+    verifySSL: true,
     refreshInterval: 300000,
   },
 }
@@ -287,7 +288,7 @@ WiFi standard detection behavior:
     username: "admin",
     controllerPassword: "your_unifi_password",
     site: "default",
-    verifySSL: false,
+    verifySSL: true,
     refreshInterval: 300000,
   },
 }
@@ -307,7 +308,7 @@ WiFi standard detection behavior:
     username: "admin",
     controllerPassword: "your_unifi_password",
     site: "default",
-    verifySSL: false,
+    verifySSL: true,
     refreshInterval: 300000,
   },
 }
@@ -450,11 +451,34 @@ If using a self-signed certificate on your UniFi controller:
 
 ```js
 config: {
-  verifySSL: false // Disable SSL verification (not recommended for production)
+  verifySSL: false, // Disable SSL verification only when you cannot use trusted certs
+  requestTimeout: 10000
 }
 ```
 
-For production environments, consider using a valid SSL certificate.
+For production environments, keep `verifySSL: true` and use a valid SSL certificate.
+
+## Security
+
+Recommended production settings:
+
+```js
+config: {
+  authMode: "auto", // or "apikey" / "login" based on your environment
+  verifySSL: true,
+  requestTimeout: 10000,
+  showPassword: false,
+  includeHotspotPassword: false,
+  maskPassword: true
+}
+```
+
+Threat model notes:
+- Network attacker / MITM: keep `verifySSL: true` to prevent credential and session interception.
+- Local shoulder-surfing: hide credentials in UI (`showPassword: false`, `includeHotspotPassword: false`) for public displays.
+- Log exposure: avoid debug logging of voucher/password values on shared systems.
+- Credential lifecycle: prefer dedicated, least-privilege UniFi accounts and rotate API keys/passwords regularly.
+- Recovery behavior: in `auto` mode, verify fallback config is intentional and not a stale backup credential source.
 
 ## License
 

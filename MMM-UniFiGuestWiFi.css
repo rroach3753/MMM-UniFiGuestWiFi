@@ -1,32 +1,50 @@
 .mmm-unifi-guestwifi {
-  padding: 15px;
-  font-family: Roboto, sans-serif;
-  color: #fff;
+  --guestwifi-text: #f4f7fb;
+  --guestwifi-muted: rgba(244, 247, 251, 0.72);
+  --guestwifi-panel: rgba(255, 255, 255, 0.06);
+  --guestwifi-panel-strong: rgba(255, 255, 255, 0.12);
+  --guestwifi-border: rgba(255, 255, 255, 0.2);
+  --guestwifi-shadow: 0 8px 24px rgba(0, 0, 0, 0.24);
+  --guestwifi-error: #ff8c82;
+  --guestwifi-open: #7bd88f;
+  --guestwifi-owe: #72c6ff;
+  --guestwifi-transition: #ffc270;
+  --guestwifi-wpa: #9ad6ff;
+  --guestwifi-standard: #88e2f1;
+  padding: 14px;
+  color: var(--guestwifi-text);
+  font-family: "Avenir Next", "Nunito Sans", "Segoe UI", sans-serif;
 }
 
 .mmm-unifi-guestwifi .message,
 .mmm-unifi-guestwifi .error {
   text-align: center;
-  padding: 20px;
+  padding: 14px;
   font-size: 14px;
+  border-radius: 8px;
+  background: var(--guestwifi-panel);
 }
 
 .mmm-unifi-guestwifi .error {
-  color: #ff6b6b;
-  background-color: rgba(255, 107, 107, 0.1);
-  border-radius: 4px;
+  color: var(--guestwifi-error);
+  border: 1px solid rgba(255, 140, 130, 0.35);
 }
 
 .guest-wifi-container {
   display: flex;
   flex-direction: column;
-  gap: 15px;
+  gap: 14px;
+  padding: 12px;
+  border-radius: 12px;
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.02));
+  border: 1px solid var(--guestwifi-border);
+  box-shadow: var(--guestwifi-shadow);
 }
 
 .guest-wifi-container.vertical .content-wrapper {
   display: flex;
   flex-direction: column;
-  gap: 15px;
+  gap: 14px;
   align-items: center;
 }
 
@@ -39,10 +57,11 @@
 
 .title {
   text-align: center;
-  font-size: 18px;
-  font-weight: 300;
-  letter-spacing: 2px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--guestwifi-border);
   padding-bottom: 10px;
 }
 
@@ -59,7 +78,7 @@
 }
 
 .guest-wifi-container.horizontal .info-section {
-  min-width: 200px;
+  min-width: 220px;
 }
 
 .ssid-row,
@@ -82,15 +101,15 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
+  gap: 8px;
   flex-wrap: wrap;
 }
 
 .ssid-row .label,
 .password-row .label {
-  min-width: 90px;
-  font-weight: 500;
-  opacity: 0.7;
+  min-width: 92px;
+  font-weight: 600;
+  color: var(--guestwifi-muted);
 }
 
 .ssid-row .value,
@@ -103,54 +122,55 @@
   display: inline-block;
   margin-left: 8px;
   padding: 2px 8px;
-  background-color: rgba(255, 255, 255, 0.15);
-  border-radius: 12px;
-  font-size: 12px;
-  opacity: 0.8;
+  background-color: var(--guestwifi-panel-strong);
+  border-radius: 999px;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--guestwifi-muted);
 }
 
-.security-badge {
+.security-badge,
+.wifi-standard-badge {
   display: inline-block;
-  padding: 4px 12px;
-  border-radius: 4px;
+  padding: 5px 12px;
+  border-radius: 999px;
   font-size: 11px;
-  font-weight: 500;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.06em;
+  border: 1px solid transparent;
 }
 
 .security-badge.security-open {
-  background-color: rgba(76, 175, 80, 0.3);
-  color: #4caf50;
+  background-color: rgba(123, 216, 143, 0.18);
+  border-color: rgba(123, 216, 143, 0.4);
+  color: var(--guestwifi-open);
 }
 
 .security-badge.security-owe {
-  background-color: rgba(33, 150, 243, 0.3);
-  color: #2196f3;
+  background-color: rgba(114, 198, 255, 0.18);
+  border-color: rgba(114, 198, 255, 0.45);
+  color: var(--guestwifi-owe);
 }
 
 .security-badge.security-owe_transition {
-  background-color: rgba(255, 152, 0, 0.3);
-  color: #ff9800;
+  background-color: rgba(255, 194, 112, 0.18);
+  border-color: rgba(255, 194, 112, 0.45);
+  color: var(--guestwifi-transition);
 }
 
 .security-badge.security-wpa,
 .security-badge.security-wpa2,
 .security-badge.security-wpa3 {
-  background-color: rgba(156, 39, 176, 0.3);
-  color: #9c27b0;
+  background-color: rgba(154, 214, 255, 0.16);
+  border-color: rgba(154, 214, 255, 0.42);
+  color: var(--guestwifi-wpa);
 }
 
 .wifi-standard-badge {
-  display: inline-block;
-  padding: 4px 12px;
-  border-radius: 4px;
-  font-size: 11px;
-  font-weight: 500;
-  letter-spacing: 0.5px;
-  text-transform: uppercase;
-  background-color: rgba(0, 188, 212, 0.25);
-  color: #80deea;
+  background-color: rgba(136, 226, 241, 0.18);
+  border-color: rgba(136, 226, 241, 0.42);
+  color: var(--guestwifi-standard);
 }
 
 .qr-section {
@@ -168,31 +188,31 @@
 .qr-container {
   background-color: #fff;
   padding: 10px;
-  border-radius: 4px;
+  border-radius: 8px;
   display: inline-block;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
 }
 
-.qr-container img {
-  display: block;
-}
-
+.qr-container img,
 .qr-container canvas,
 .qr-container table {
   display: block;
+  max-width: 100%;
+  height: auto;
 }
 
 .portal-password-row {
   width: 100%;
-  max-width: 260px;
+  max-width: 280px;
   text-align: center;
 }
 
 .portal-hint {
-  max-width: 260px;
+  max-width: 280px;
   text-align: center;
   font-size: 12px;
-  line-height: 1.4;
-  opacity: 0.75;
+  line-height: 1.45;
+  color: var(--guestwifi-muted);
 }
 
 .voucher-section {
@@ -201,44 +221,51 @@
   align-items: center;
   gap: 8px;
   padding: 10px;
-  background-color: rgba(255, 255, 255, 0.05);
-  border-radius: 4px;
-  margin-top: 10px;
+  background-color: var(--guestwifi-panel);
+  border: 1px solid var(--guestwifi-border);
+  border-radius: 8px;
+  margin-top: 8px;
 }
 
 .voucher-section .label {
-  font-size: 12px;
-  opacity: 0.7;
+  font-size: 11px;
+  color: var(--guestwifi-muted);
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.08em;
   text-align: center;
   width: 100%;
 }
 
 .voucher-section .label.warning {
-  color: #ffb74d;
+  color: var(--guestwifi-transition);
 }
 
 .voucher-code {
-  font-size: 16px;
-  font-weight: 500;
-  letter-spacing: 1px;
-  font-family: "Courier New", monospace;
-  padding: 8px;
-  background-color: rgba(255, 255, 255, 0.1);
-  border-radius: 4px;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  font-family: "SFMono-Regular", Menlo, Consolas, monospace;
+  padding: 8px 10px;
+  background-color: var(--guestwifi-panel-strong);
+  border: 1px solid var(--guestwifi-border);
+  border-radius: 6px;
   text-align: center;
+  word-break: break-word;
 }
 
-/* Responsive adjustments */
-@media (max-width: 600px) {
+@media (max-width: 700px) {
   .guest-wifi-container.horizontal .content-wrapper {
     flex-direction: column;
+    align-items: center;
+    gap: 14px;
   }
 
-  .qr-container {
-    width: 120px;
-    height: 120px;
+  .guest-wifi-container.horizontal .info-section,
+  .guest-wifi-container.vertical .info-section {
+    min-width: 0;
+    width: 100%;
+    align-items: center;
+    text-align: center;
   }
 
   .mmm-unifi-guestwifi {
@@ -247,7 +274,19 @@
 
   .ssid-row,
   .password-row {
-    font-size: 12px;
+    font-size: 13px;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .ssid-row .label,
+  .password-row .label {
+    min-width: 0;
+  }
+
+  .portal-password-row,
+  .portal-hint {
+    max-width: 240px;
   }
 
   .voucher-code {
