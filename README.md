@@ -458,6 +458,30 @@ config: {
 
 For production environments, keep `verifySSL: true` and use a valid SSL certificate.
 
+### Node.js Certificate Chain Issues
+
+If your UniFi controller has a **valid certificate but from a CA that Node.js doesn't recognize**, you may see failures with `verifySSL: true` even though the certificate is valid (curl works fine). This is because Node.js has stricter certificate chain validation than curl.
+
+**Solution: Use NODE_EXTRA_CA_CERTS environment variable**
+
+1. Export your controller's certificate:
+```bash
+openssl s_client -connect your-controller:8443 -showcerts </dev/null 2>/dev/null | sed -ne '/-BEGIN CERTIFICATE-/,/-END CERTIFICATE-/p' > ~/.config/controller-ca.pem
+```
+
+2. Start MagicMirror with the certificate available to Node.js:
+```bash
+export NODE_EXTRA_CA_CERTS=~/.config/controller-ca.pem
+npm start
+```
+
+3. Keep `verifySSL: true` in your config — it will now work with proper verification enabled.
+
+Alternatively, add this to your shell profile (`.bashrc`, `.zshrc`, etc.) for a permanent solution:
+```bash
+export NODE_EXTRA_CA_CERTS=~/.config/controller-ca.pem
+```
+
 ## Security
 
 Recommended production settings:
