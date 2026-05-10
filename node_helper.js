@@ -579,6 +579,14 @@ module.exports = NodeHelper.create({
 
     const securitySignals = [primarySignals, secondarySignals, tertiarySignals].filter(Boolean).join(" ");
 
+    const includesAny = (source, values) => values.some((value) => source.includes(value));
+
+    const primaryHasOpen = primarySignals.includes("open") || primarySecurity === "open";
+    const primaryHasOwe = includesAny(primarySignals, ["owe", "enhanced open"]);
+    const primaryHasTransition = primarySignals.includes("transition");
+    const securityHasOwe = includesAny(securitySignals, ["owe", "enhanced open"]);
+    const securityHasTransition = securitySignals.includes("transition");
+
     const oweTransitionFlag = [
       network.owe_transition,
       network.oweTransition,
@@ -590,52 +598,44 @@ module.exports = NodeHelper.create({
       .map((value) => String(value == null ? "" : value).toLowerCase())
       .some((value) => ["true", "1", "on", "enabled", "transition"].includes(value));
 
-    if (primarySignals.includes("owe") && primarySignals.includes("transition")) {
+    if (primaryHasOwe && primaryHasTransition) {
       return "OWE_TRANSITION";
     }
 
-    if (primarySignals.includes("enhanced open") && primarySignals.includes("transition")) {
-      return "OWE_TRANSITION";
-    }
-
-    if (primarySignals.includes("owe") || primarySignals.includes("enhanced open")) {
+    if (primaryHasOwe) {
       return "OWE";
     }
 
     // UniFi Enhanced Open + Transition commonly appears as:
     // security=open, wpa3_support=true, wpa3_transition=true.
-    if ((primarySecurity === "open" || primarySignals.includes("open")) && wpa3Support && wpa3Transition) {
+    if (primaryHasOpen && wpa3Support && wpa3Transition) {
       return "OWE_TRANSITION";
     }
 
     // UniFi Open + OWE (non-transition) commonly appears as:
     // security=open, wpa3_support=true, wpa3_transition=false.
-    if ((primarySecurity === "open" || primarySignals.includes("open")) && wpa3Support && !wpa3Transition) {
+    if (primaryHasOpen && wpa3Support && !wpa3Transition) {
       return "OWE";
     }
 
-    if (primarySignals.includes("open")) {
+    if (primaryHasOpen) {
       return "OPEN";
     }
 
-    if (!primarySignals && securitySignals.includes("owe") && securitySignals.includes("transition")) {
+    if (!primarySignals && securityHasOwe && securityHasTransition) {
       return "OWE_TRANSITION";
     }
 
-    if (!primarySignals && securitySignals.includes("enhanced open") && securitySignals.includes("transition")) {
-      return "OWE_TRANSITION";
-    }
-
-    if (oweTransitionFlag && (securitySignals.includes("owe") || securitySignals.includes("enhanced open") || enhancedOpenFlags || primarySignals.includes("open"))) {
+    if (oweTransitionFlag && (securityHasOwe || enhancedOpenFlags || primaryHasOpen)) {
       return "OWE_TRANSITION";
     }
 
     // Some UniFi payloads only expose "open" in primary fields plus explicit enhanced-open flags.
-    if (primarySignals.includes("open") && enhancedOpenFlags) {
+    if (primaryHasOpen && enhancedOpenFlags) {
       return "OWE_TRANSITION";
     }
 
-    if (!primarySignals && (securitySignals.includes("owe") || securitySignals.includes("enhanced open"))) {
+    if (!primarySignals && securityHasOwe) {
       return "OWE";
     }
 
@@ -655,13 +655,7 @@ module.exports = NodeHelper.create({
       return "WPA3";
     }
 
-    if (
-      securitySignals.includes("wpa3") ||
-      securitySignals.includes("sae") ||
-      securitySignals.includes("psk2+sae") ||
-      securitySignals.includes("wpa2/wpa3") ||
-      securitySignals.includes("wpa2-wpa3")
-    ) {
+    if (includesAny(securitySignals, ["wpa3", "sae", "psk2+sae", "wpa2/wpa3", "wpa2-wpa3"])) {
       return "WPA3";
     }
 
