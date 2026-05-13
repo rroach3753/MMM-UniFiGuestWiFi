@@ -16,8 +16,8 @@
   ],
   "homepage": "https://github.com/rroach3753/MMM-UniFiGuestWiFi",
   "scripts": {
-    "lint": "eslint .",
-    "lint:fix": "eslint . --fix"
+    "lint": "eslint",
+    "lint:fix": "eslint --fix"
   },
   "repository": {
     "type": "git",
