@@ -1,4 +1,6 @@
-module.exports = [
+const { defineConfig } = require("eslint/config");
+
+module.exports = defineConfig([
   {
     ignores: [
       "node_modules/**",
@@ -20,4 +22,4 @@ module.exports = [
       "no-unused-vars": ["error", { "argsIgnorePattern": "^_" }]
     }
   }
-];
+]);

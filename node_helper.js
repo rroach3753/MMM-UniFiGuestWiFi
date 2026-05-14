@@ -299,7 +299,7 @@ module.exports = NodeHelper.create({
     };
   },
 
-  generateQRString(ssid, _password, securityType, _isHidden) {
+  generateQRString(ssid, _password, securityType) {
 
     // Captive portal flow: encode only network join metadata.
     const limitedSSID = limitUtf8Bytes(ssid, 32);
