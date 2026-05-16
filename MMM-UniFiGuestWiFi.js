@@ -39,6 +39,7 @@ Module.register("MMM-UniFiGuestWiFi", {
 
   start: function () {
     this.instanceId = this.identifier || this.name;
+    this.hasRenderedData = false;
     this.dataState = {
       ssid: null,
       password: null,
@@ -124,12 +125,14 @@ Module.register("MMM-UniFiGuestWiFi", {
       };
       this.configRetryCount = 0;
       this.clearRetryTimer();
-      this.updateDom(300);
+      this.updateDom(this.hasRenderedData ? 0 : 300);
+      this.hasRenderedData = true;
     } else if (notification === "UNIFI_GUESTWIFI_ERROR") {
       this.dataState.error = data.error || "Unknown error";
       this.dataState.loading = false;
       this.clearRetryTimer();
-      this.updateDom(300);
+      this.updateDom(this.hasRenderedData ? 0 : 300);
+      this.hasRenderedData = true;
     }
   },
 
