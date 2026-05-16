@@ -22,6 +22,8 @@ A [MagicMirror²](https://github.com/MagicMirrorOrg/MagicMirror) module for disp
     - Displays next available active voucher code from direct API query
 - **Fallback Support**:
     - Shows hotspot portal password when no vouchers are available
+- **Smooth Refresh Updates**:
+  - Refreshes update the existing display in place after the first render without flashing the module
 - **Password Masking**:
     - Optional password display masking in the UI (for protected networks)
 - **Responsive Layouts**:
