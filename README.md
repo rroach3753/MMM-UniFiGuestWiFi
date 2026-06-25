@@ -23,7 +23,7 @@ A [MagicMirror²](https://github.com/MagicMirrorOrg/MagicMirror) module for disp
 - **Fallback Support**:
     - Shows hotspot portal password when no vouchers are available
 - **Smooth Refresh Updates**:
-  - Refreshes update the existing display in place after the first render without flashing the module
+  - Display updates in place after initial render without flashing the module
 - **Password Masking**:
     - Optional password display masking in the UI (for protected networks)
 - **Responsive Layouts**:
@@ -62,6 +62,18 @@ mmpm install MMM-UniFiGuestWiFi
 
 Add this to your `config/config.js` file. See examples below for specific scenarios.
 
+### Basic Structure
+
+```js
+{
+  module: "MMM-UniFiGuestWiFi",
+  position: "top_right",
+  config: {
+    // Configuration options here
+  },
+},
+```
+
 ## Screenshots
 
 ### Portal Password Shown (No Vouchers Available)
@@ -75,18 +87,6 @@ When there are no active vouchers, the module displays the hotspot portal passwo
 When an active voucher is available, the module shows the next voucher and hides the portal password fallback.
 
 ![Voucher shown and portal password hidden](images/vouchers-hideportalpassword.png)
-
-### Basic Structure
-
-```js
-{
-  module: "MMM-UniFiGuestWiFi",
-  position: "top_right",
-  config: {
-    // Configuration options here
-  },
-},
-```
 
 ### Configuration Options
 
@@ -257,17 +257,12 @@ WiFi standard detection behavior:
   position: "top_right",
   config: {
     authMode: "auto", // Try API, fall back to config on failure
-    // API config
     controllerUrl: "https://unifi.local",
     username: "admin",
     controllerPassword: "your_unifi_password",
-    // Fallback config
-    ssid: "Guest Network",
-    password: "DefaultPassword123",
-    securityType: "WPA2",
-    // Display options
-    layoutVertical: true,
-    refreshInterval: 600000, // 10 minutes
+    site: "default",
+    verifySSL: true,
+    refreshInterval: 300000,
   },
 }
 ```
@@ -283,44 +278,6 @@ WiFi standard detection behavior:
     controllerUrl: "https://unifi.local",
     apiKey: "YOUR_UNIFI_API_KEY",
     apiKeyHeader: "X-API-Key",
-    site: "default",
-    verifySSL: true,
-    refreshInterval: 300000,
-  },
-}
-```
-
-### Example 7: Controller Username/Password Only
-
-```js
-{
-  module: "MMM-UniFiGuestWiFi",
-  position: "top_right",
-  config: {
-    authMode: "api",
-    controllerUrl: "https://unifi.local",
-    username: "admin",
-    controllerPassword: "your_unifi_password",
-    site: "default",
-    verifySSL: true,
-    refreshInterval: 300000,
-  },
-}
-```
-
-### Example 8: API Key First, Then Login Fallback
-
-```js
-{
-  module: "MMM-UniFiGuestWiFi",
-  position: "top_right",
-  config: {
-    authMode: "auto",
-    controllerUrl: "https://unifi.local",
-    apiKey: "YOUR_UNIFI_API_KEY",
-    apiKeyHeader: "X-API-Key",
-    username: "admin",
-    controllerPassword: "your_unifi_password",
     site: "default",
     verifySSL: true,
     refreshInterval: 300000,
@@ -367,13 +324,7 @@ Notes:
 
 ## Voucher Code Integration
 
-Voucher data is fetched directly from the UniFi API in API/auto modes.
-
-If no active vouchers are returned, the module falls back to hotspot portal password display (when enabled).
-
-### No Vouchers Available
-
-When no active vouchers exist, the module can display:
+Voucher data is fetched directly from the UniFi API in API/auto modes. If no active vouchers are available, the module can display:
 - The message "No active vouchers available"
 - The hotspot portal password (if `includeHotspotPassword: true`)
 
@@ -502,7 +453,7 @@ Recommended production settings:
 
 ```js
 config: {
-  authMode: "auto", // or "apikey" / "login" based on your environment
+  authMode: "auto", // or "api" / "config" based on your environment
   verifySSL: true,
   requestTimeout: 10000,
   showPassword: false,
