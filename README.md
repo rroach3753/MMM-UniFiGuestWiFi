@@ -1,35 +1,35 @@
 # MMM-UniFiGuestWiFi
 
-A [MagicMirror²](https://github.com/MagicMirrorOrg/MagicMirror) module for displaying UniFi Hotspot WiFi network details, including SSID, password, QR code, and available voucher codes.
+A [MagicMirror²](https://github.com/MagicMirrorOrg/MagicMirror) module for
+displaying UniFi Hotspot WiFi network details, including SSID, password, QR
+code, and available voucher codes.
 
 ## Features
 
-- **Multiple Data Sources**:
-    - Fetch guest/hotspot WiFi details from UniFi controller API or use configuration-based settings
-- **Flexible Authentication**:
-    - API key first with automatic controller-login fallback when credentials are provided
-- **WiFi Security Support**:
-    - Open, OWE, OWE Transition, WPA, WPA2, and WPA3 networks
-- **WiFi Standard Badge**:
-    - Displays WiFi generation badge (WiFi 4/5/6/6E/7) when detectable
-- **Enhanced WiFi Detection Mode**:
-    - Optional AP-capability-based detection to improve WiFi 7 classification
-- **Backend QR Generation**:
-    - Server-side QR image generation for reliable rendering on older Electron runtimes
-- **Captive Portal Friendly QR**:
-    - QR payload joins SSID only (portal password is displayed in UI, not embedded in QR)
-- **Voucher Integration**:
-    - Displays next available active voucher code from direct API query
-- **Fallback Support**:
-    - Shows hotspot portal password when no vouchers are available
-- **Smooth Refresh Updates**:
-    - Display updates in place after initial render without flashing the module
-- **Password Masking**:
-    - Optional password display masking in the UI (for protected networks)
-- **Responsive Layouts**:
-    - Vertical (default) or horizontal layout options
-- **Customizable Styling**:
-    - QR code size, colors, and display options
+- **Multiple Data Sources**: Fetch guest/hotspot WiFi details from UniFi controller
+  API or use configuration-based settings
+- **Flexible Authentication**: API key first with automatic controller-login
+  fallback when credentials are provided
+- **WiFi Security Support**: Open, OWE, OWE Transition, WPA, WPA2, and WPA3
+  networks
+- **WiFi Standard Badge**: Displays WiFi generation badge (WiFi 4/5/6/6E/7)
+  when detectable
+- **Enhanced WiFi Detection Mode**: Optional AP-capability-based detection to
+  improve WiFi 7 classification
+- **Backend QR Generation**: Server-side QR image generation for reliable
+  rendering on older Electron runtimes
+- **Captive Portal Friendly QR**: QR payload joins SSID only (portal password
+  is displayed in UI, not embedded in QR)
+- **Voucher Integration**: Displays next available active voucher code from
+  direct API query
+- **Fallback Support**: Shows hotspot portal password when no vouchers are
+  available
+- **Smooth Refresh Updates**: Display updates in place after initial render
+  without flashing the module
+- **Password Masking**: Optional password display masking in the UI (for
+  protected networks)
+- **Responsive Layouts**: Vertical (default) or horizontal layout options
+- **Customizable Styling**: QR code size, colors, and display options
 
 ## Prerequisites
 
@@ -78,25 +78,27 @@ Add this to your `config/config.js` file. See examples below for specific scenar
 
 ### Portal Password Shown (No Vouchers Available)
 
-When there are no active vouchers, the module displays the hotspot portal password fallback.
+When there are no active vouchers, the module displays the hotspot portal
+password fallback.
 
 ![Portal password shown when no vouchers are available](images/portalpassword-novouchers.png)
 
 ### Voucher Available (Portal Password Hidden)
 
-When an active voucher is available, the module shows the next voucher and hides the portal password fallback.
+When an active voucher is available, the module shows the next voucher and
+hides the portal password fallback.
 
 ![Voucher shown and portal password hidden](images/vouchers-hideportalpassword.png)
 
 ## Configuration Options
 
-#### Data Source Options
+### Data Source Options
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `authMode` | string | `"config"` | Data source mode: `"config"` (hardcoded), `"api"` (fetch from UniFi using API key or controller login), or `"auto"` (try API, fallback to config) |
 
-#### Config Mode Options (authMode: "config")
+### Config Mode Options (authMode: "config")
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
@@ -105,7 +107,7 @@ When an active voucher is available, the module shows the next voucher and hides
 | `securityType` | string | `"WPA"` | Security type: `"OPEN"`, `"OWE"`, `"OWE_TRANSITION"`, `"WPA"`, `"WPA2"`, or `"WPA3"` |
 | `isHidden` | boolean | `false` | Whether the SSID is hidden |
 
-#### API Mode Options (authMode: "api")
+### API Mode Options (authMode: "api")
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
@@ -122,15 +124,20 @@ When an active voucher is available, the module shows the next voucher and hides
 | `enhancedWiFiStandardDetection` | boolean | `true` | Use AP capability data (`stat/device`) to improve WiFi generation badging |
 
 Authentication behavior in API mode:
+
 - If `apiKey` is set, the module tries API key authentication first.
-- If API key does not return usable data and `username` + `controllerPassword` are set, it falls back to controller login.
+- If API key does not return usable data and `username` + `controllerPassword`
+  are set, it falls back to controller login.
 - If API key is not set, it uses `username` + `controllerPassword` directly.
 
 WiFi standard detection behavior:
-- `enhancedWiFiStandardDetection: true` (default) uses AP capability lookups to improve WiFi generation badging.
-- Set `enhancedWiFiStandardDetection: false` to use SSID-level data only (more conservative classification).
 
-#### Display Options
+- `enhancedWiFiStandardDetection: true` (default) uses AP capability lookups
+  to improve WiFi generation badging.
+- Set `enhancedWiFiStandardDetection: false` to use SSID-level data only (more
+  conservative classification).
+
+### Display Options
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
@@ -143,14 +150,14 @@ WiFi standard detection behavior:
 | `showVoucher` | boolean | `true` | Show voucher code section |
 | `maskPassword` | boolean | `true` | Mask password display (asterisks/dots) - QR still contains actual password |
 
-#### Voucher Options
+### Voucher Options
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `voucherLabel` | string | `"Guest Code"` | Label for voucher code display |
 | `includeHotspotPassword` | boolean | `false` | Show hotspot portal password when no vouchers available |
 
-#### QR Code Options
+### QR Code Options
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
@@ -158,7 +165,7 @@ WiFi standard detection behavior:
 | `colorDark` | string | `"#000000"` | QR code dark color (hex) |
 | `colorLight` | string | `"#ffffff"` | QR code light color (hex) |
 
-#### Message Options
+### Message Options
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
@@ -463,13 +470,19 @@ For production environments, keep `verifySSL: true` and use a valid SSL certific
 
 ### Node.js Certificate Chain Issues
 
-If your UniFi controller has a **valid certificate but from a CA that Node.js doesn't recognize**, you may see failures with `verifySSL: true` even though the certificate is valid (curl works fine). This is because Node.js has stricter certificate chain validation than curl.
+If your UniFi controller has a **valid certificate but from a CA that Node.js
+doesn't recognize**, you may see failures with `verifySSL: true` even though
+the certificate is valid (curl works fine). This is because Node.js has stricter
+certificate chain validation than curl.
 
 **Solution: Use NODE_EXTRA_CA_CERTS environment variable**
 
 1. Export your controller's certificate:
+
 ```bash
-openssl s_client -connect your-controller:8443 -showcerts </dev/null 2>/dev/null | sed -ne '/-BEGIN CERTIFICATE-/,/-END CERTIFICATE-/p' > ~/.config/controller-ca.pem
+openssl s_client -connect your-controller:8443 -showcerts </dev/null 2>/dev/null \
+  | sed -ne '/-BEGIN CERTIFICATE-/,/-END CERTIFICATE-/p' \
+  > ~/.config/controller-ca.pem
 ```
 
 2. Start MagicMirror with the certificate available to Node.js:
@@ -478,9 +491,12 @@ export NODE_EXTRA_CA_CERTS=~/.config/controller-ca.pem
 npm start
 ```
 
-3. Keep `verifySSL: true` in your config — it will now work with proper verification enabled.
+3. Keep `verifySSL: true` in your config — it will now work with proper
+   verification enabled.
 
-Alternatively, add this to your shell profile (`.bashrc`, `.zshrc`, etc.) for a permanent solution:
+Alternatively, add this to your shell profile (`.bashrc`, `.zshrc`, etc.) for
+a permanent solution:
+
 ```bash
 export NODE_EXTRA_CA_CERTS=~/.config/controller-ca.pem
 ```
