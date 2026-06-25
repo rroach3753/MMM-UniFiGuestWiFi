@@ -333,22 +333,27 @@ WiFi standard detection behavior:
 ## WiFi Security Types
 
 ### OPEN
+
 - No authentication required
 - QR format: `WIFI:T:nopass;S:NetworkName;;`
 - Password field not displayed
 
 ### OWE (Opportunistic Wireless Encryption)
+
 - Individualized Data Encryption (IDE) without pre-shared key
 - QR format: `WIFI:T:OWE;S:NetworkName;;`
 - Password field not displayed
 
 ### OWE_TRANSITION
+
 - Network configured for both Open and OWE compatibility
 - Displayed as `OWE TRANSITION` in the UI badge
-- Encoded with open join behavior in QR for compatibility with camera-based onboarding
+- Encoded with open join behavior in QR for compatibility with camera-based
+  onboarding
 - Password field not displayed
 
 ### WPA / WPA2 / WPA3
+
 - Traditional password-protected networks
 - Password field displayed (unless masked)
 
@@ -358,7 +363,7 @@ QR payloads are intentionally captive-portal friendly and encode SSID join metad
 
 Current format:
 
-```
+```text
 WIFI:S:{SSID};T:{nopass|OWE};;
 ```
 
@@ -475,7 +480,7 @@ doesn't recognize**, you may see failures with `verifySSL: true` even though
 the certificate is valid (curl works fine). This is because Node.js has stricter
 certificate chain validation than curl.
 
-**Solution: Use NODE_EXTRA_CA_CERTS environment variable**
+### Use NODE_EXTRA_CA_CERTS Environment Variable
 
 1. Export your controller's certificate:
 
@@ -485,13 +490,14 @@ openssl s_client -connect your-controller:8443 -showcerts </dev/null 2>/dev/null
   > ~/.config/controller-ca.pem
 ```
 
-2. Start MagicMirror with the certificate available to Node.js:
+1. Start MagicMirror with the certificate available to Node.js:
+
 ```bash
 export NODE_EXTRA_CA_CERTS=~/.config/controller-ca.pem
 npm start
 ```
 
-3. Keep `verifySSL: true` in your config — it will now work with proper
+1. Keep `verifySSL: true` in your config — it will now work with proper
    verification enabled.
 
 Alternatively, add this to your shell profile (`.bashrc`, `.zshrc`, etc.) for
