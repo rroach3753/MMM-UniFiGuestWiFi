@@ -335,9 +335,6 @@ module.exports = NodeHelper.create({
       throw new Error("No hotspot or guest networks found on controller");
     }
 
-    console.log("[MMM-UniFiGuestWiFi] DEBUG - Found", guestNetworks.length, "guest/hotspot networks");
-    console.log("[MMM-UniFiGuestWiFi] DEBUG - Guest networks raw:", JSON.stringify(guestNetworks, null, 2));
-
     const preferredSsid = normalizeString(config.ssid, "").toLowerCase();
     const preferredMatch = preferredSsid
       ? guestNetworks.find((network) => {
@@ -353,8 +350,6 @@ module.exports = NodeHelper.create({
     const wifiStandard = await this.mapWiFiStandard(config, guestNetwork);
     const isHidden = Boolean(guestNetwork.hide_ssid || guestNetwork.hidden || guestNetwork.is_hidden);
 
-    console.log("[MMM-UniFiGuestWiFi] DEBUG - Selected network SSID:", ssid, "WiFi Standard:", wifiStandard);
-
     return {
       ssid,
       password: password || null,
@@ -367,22 +362,16 @@ module.exports = NodeHelper.create({
 
   async mapWiFiStandard(config, network) {
     const baseStandard = this.mapWiFiStandardFromNetwork(network);
-    console.log("[MMM-UniFiGuestWiFi] DEBUG - mapWiFiStandard baseStandard:", baseStandard);
-    
     if (!normalizeBoolean(config.enhancedWiFiStandardDetection, true)) {
-      console.log("[MMM-UniFiGuestWiFi] DEBUG - Enhanced WiFi detection disabled");
       return baseStandard;
     }
 
     if (baseStandard === "WiFi 7") {
-      console.log("[MMM-UniFiGuestWiFi] DEBUG - Base standard already WiFi 7");
       return baseStandard;
     }
 
     try {
-      console.log("[MMM-UniFiGuestWiFi] DEBUG - Calling mapWiFiStandardFromControllerRadios...");
       const enhancedStandard = await this.mapWiFiStandardFromControllerRadios(config, network, baseStandard);
-      console.log("[MMM-UniFiGuestWiFi] DEBUG - Enhanced standard result:", enhancedStandard);
       return enhancedStandard || baseStandard;
     } catch (error) {
       console.warn("[MMM-UniFiGuestWiFi] Enhanced WiFi standard detection failed:", error.message);
@@ -394,10 +383,6 @@ module.exports = NodeHelper.create({
     const flattenedSignals = JSON.stringify(network || {}).toLowerCase();
     const bands = [];
 
-    // DEBUG: Log the network object to identify available fields
-    console.log("[MMM-UniFiGuestWiFi] DEBUG - Network object keys:", Object.keys(network || {}));
-    console.log("[MMM-UniFiGuestWiFi] DEBUG - Full network object:", JSON.stringify(network, null, 2));
-
     if (Array.isArray(network.wlan_bands)) {
       for (const band of network.wlan_bands) {
         bands.push(String(band).toLowerCase());
@@ -408,9 +393,6 @@ module.exports = NodeHelper.create({
       bands.push(String(network.wlan_band).toLowerCase());
     }
 
-    console.log("[MMM-UniFiGuestWiFi] DEBUG - Detected bands:", bands);
-    console.log("[MMM-UniFiGuestWiFi] DEBUG - mlo_enabled:", network.mlo_enabled, "mloEnabled:", network.mloEnabled);
-
     const has6g = bands.some((band) => band.includes("6g"));
     const mloEnabled = (
       network.mlo_enabled === true ||
@@ -420,32 +402,28 @@ module.exports = NodeHelper.create({
 
     // Most trustworthy indicator for 802.11be in UniFi WLAN config.
     if (mloEnabled || flattenedSignals.includes("11be") || flattenedSignals.includes("wifi7") || flattenedSignals.includes("eht")) {
-      console.log("[MMM-UniFiGuestWiFi] DEBUG - Detected WiFi 7 (mloEnabled:", mloEnabled, ", has 11be/wifi7/eht:", flattenedSignals.includes("11be") || flattenedSignals.includes("wifi7") || flattenedSignals.includes("eht"), ")");
       return "WiFi 7";
     }
 
     // 6 GHz without MLO is typically WiFi 6E in UniFi WLAN definitions.
     if (has6g) {
-      console.log("[MMM-UniFiGuestWiFi] DEBUG - Detected WiFi 6E (has 6g)");
       return "WiFi 6E";
     }
 
     if (flattenedSignals.includes("11ax") || flattenedSignals.includes("wifi6") || flattenedSignals.includes(" he ")) {
-      console.log("[MMM-UniFiGuestWiFi] DEBUG - Detected WiFi 6");
       return "WiFi 6";
     }
 
     if (flattenedSignals.includes("11ac") || flattenedSignals.includes("wifi5") || flattenedSignals.includes("vht")) {
-      console.log("[MMM-UniFiGuestWiFi] DEBUG - Detected WiFi 5");
       return "WiFi 5";
     }
 
     if (flattenedSignals.includes("11n") || flattenedSignals.includes("wifi4") || flattenedSignals.includes("ht")) {
-      console.log("[MMM-UniFiGuestWiFi] DEBUG - Detected WiFi 4");
       return "WiFi 4";
     }
 
-    console.log("[MMM-UniFiGuestWiFi] DEBUG - No WiFi standard detected, returning null");
+    // UniFi 10.5.51+ no longer includes WiFi standard indicators in network config
+    // Return null to trigger AP-based detection in mapWiFiStandard
     return null;
   },
 
@@ -462,33 +440,20 @@ module.exports = NodeHelper.create({
       bands.push(String(network.wlan_band).toLowerCase());
     }
 
-    console.log("[MMM-UniFiGuestWiFi] DEBUG - mapWiFiStandardFromControllerRadios: bands=", bands);
-    
-    const has6g = bands.some((band) => band.includes("6g"));
-    if (!has6g) {
-      console.log("[MMM-UniFiGuestWiFi] DEBUG - No 6g band, checking AP capabilities for", bands.join(", "));
-      // Even without 6g, we should check APs to determine WiFi standard for 5g/2.4g bands
-    }
-
+    // UniFi 10.5.51+ moved WiFi standard indicators to AP device capabilities.
+    // Always check AP radios to determine WiFi standard, not just for 6g bands.
     const apDevices = await this.fetchAPDeviceRecords(config);
-    console.log("[MMM-UniFiGuestWiFi] DEBUG - Fetched", apDevices.length, "AP devices");
-    
     if (!apDevices.length) {
-      console.log("[MMM-UniFiGuestWiFi] DEBUG - No AP devices found");
       return baseStandard;
     }
 
-    console.log("[MMM-UniFiGuestWiFi] DEBUG - AP devices:", JSON.stringify(apDevices, null, 2));
-
     const hasWiFi7CapableAP = apDevices.some((device) => this.isWiFi7CapableDevice(device));
     if (hasWiFi7CapableAP) {
-      console.log("[MMM-UniFiGuestWiFi] DEBUG - Found WiFi 7 capable AP");
       return "WiFi 7";
     }
 
-    console.log("[MMM-UniFiGuestWiFi] DEBUG - No WiFi 7 capable AP found, returning baseStandard:", baseStandard);
     return baseStandard;
-  },
+  }
 
   isWiFi7CapableDevice(device) {
     if (!device || typeof device !== "object") {
