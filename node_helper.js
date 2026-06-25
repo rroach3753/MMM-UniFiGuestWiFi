@@ -367,16 +367,22 @@ module.exports = NodeHelper.create({
 
   async mapWiFiStandard(config, network) {
     const baseStandard = this.mapWiFiStandardFromNetwork(network);
+    console.log("[MMM-UniFiGuestWiFi] DEBUG - mapWiFiStandard baseStandard:", baseStandard);
+    
     if (!normalizeBoolean(config.enhancedWiFiStandardDetection, true)) {
+      console.log("[MMM-UniFiGuestWiFi] DEBUG - Enhanced WiFi detection disabled");
       return baseStandard;
     }
 
     if (baseStandard === "WiFi 7") {
+      console.log("[MMM-UniFiGuestWiFi] DEBUG - Base standard already WiFi 7");
       return baseStandard;
     }
 
     try {
+      console.log("[MMM-UniFiGuestWiFi] DEBUG - Calling mapWiFiStandardFromControllerRadios...");
       const enhancedStandard = await this.mapWiFiStandardFromControllerRadios(config, network, baseStandard);
+      console.log("[MMM-UniFiGuestWiFi] DEBUG - Enhanced standard result:", enhancedStandard);
       return enhancedStandard || baseStandard;
     } catch (error) {
       console.warn("[MMM-UniFiGuestWiFi] Enhanced WiFi standard detection failed:", error.message);
@@ -456,21 +462,31 @@ module.exports = NodeHelper.create({
       bands.push(String(network.wlan_band).toLowerCase());
     }
 
+    console.log("[MMM-UniFiGuestWiFi] DEBUG - mapWiFiStandardFromControllerRadios: bands=", bands);
+    
     const has6g = bands.some((band) => band.includes("6g"));
     if (!has6g) {
-      return baseStandard;
+      console.log("[MMM-UniFiGuestWiFi] DEBUG - No 6g band, checking AP capabilities for", bands.join(", "));
+      // Even without 6g, we should check APs to determine WiFi standard for 5g/2.4g bands
     }
 
     const apDevices = await this.fetchAPDeviceRecords(config);
+    console.log("[MMM-UniFiGuestWiFi] DEBUG - Fetched", apDevices.length, "AP devices");
+    
     if (!apDevices.length) {
+      console.log("[MMM-UniFiGuestWiFi] DEBUG - No AP devices found");
       return baseStandard;
     }
 
+    console.log("[MMM-UniFiGuestWiFi] DEBUG - AP devices:", JSON.stringify(apDevices, null, 2));
+
     const hasWiFi7CapableAP = apDevices.some((device) => this.isWiFi7CapableDevice(device));
     if (hasWiFi7CapableAP) {
+      console.log("[MMM-UniFiGuestWiFi] DEBUG - Found WiFi 7 capable AP");
       return "WiFi 7";
     }
 
+    console.log("[MMM-UniFiGuestWiFi] DEBUG - No WiFi 7 capable AP found, returning baseStandard:", baseStandard);
     return baseStandard;
   },
 
