@@ -23,7 +23,7 @@ A [MagicMirror²](https://github.com/MagicMirrorOrg/MagicMirror) module for disp
 - **Fallback Support**:
     - Shows hotspot portal password when no vouchers are available
 - **Smooth Refresh Updates**:
-  - Display updates in place after initial render without flashing the module
+    - Display updates in place after initial render without flashing the module
 - **Password Masking**:
     - Optional password display masking in the UI (for protected networks)
 - **Responsive Layouts**:
@@ -88,7 +88,7 @@ When an active voucher is available, the module shows the next voucher and hides
 
 ![Voucher shown and portal password hidden](images/vouchers-hideportalpassword.png)
 
-### Configuration Options
+## Configuration Options
 
 #### Data Source Options
 
@@ -278,6 +278,44 @@ WiFi standard detection behavior:
     controllerUrl: "https://unifi.local",
     apiKey: "YOUR_UNIFI_API_KEY",
     apiKeyHeader: "X-API-Key",
+    site: "default",
+    verifySSL: true,
+    refreshInterval: 300000,
+  },
+}
+```
+
+### Example 7: Controller Username/Password Only
+
+```js
+{
+  module: "MMM-UniFiGuestWiFi",
+  position: "top_right",
+  config: {
+    authMode: "api",
+    controllerUrl: "https://unifi.local",
+    username: "admin",
+    controllerPassword: "your_unifi_password",
+    site: "default",
+    verifySSL: true,
+    refreshInterval: 300000,
+  },
+}
+```
+
+### Example 8: API Key First, Then Login Fallback
+
+```js
+{
+  module: "MMM-UniFiGuestWiFi",
+  position: "top_right",
+  config: {
+    authMode: "auto",
+    controllerUrl: "https://unifi.local",
+    apiKey: "YOUR_UNIFI_API_KEY",
+    apiKeyHeader: "X-API-Key",
+    username: "admin",
+    controllerPassword: "your_unifi_password",
     site: "default",
     verifySSL: true,
     refreshInterval: 300000,
