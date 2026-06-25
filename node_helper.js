@@ -474,7 +474,7 @@ module.exports = NodeHelper.create({
       console.error("[MMM-UniFiGuestWiFi] ERROR in mapWiFiStandardFromControllerRadios:", error.message);
       return baseStandard;
     }
-  }
+  },
 
   isWiFi7CapableDevice(device) {
     if (!device || typeof device !== "object") {
