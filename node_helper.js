@@ -335,6 +335,9 @@ module.exports = NodeHelper.create({
       throw new Error("No hotspot or guest networks found on controller");
     }
 
+    console.log("[MMM-UniFiGuestWiFi] DEBUG - Found", guestNetworks.length, "guest/hotspot networks");
+    console.log("[MMM-UniFiGuestWiFi] DEBUG - Guest networks raw:", JSON.stringify(guestNetworks, null, 2));
+
     const preferredSsid = normalizeString(config.ssid, "").toLowerCase();
     const preferredMatch = preferredSsid
       ? guestNetworks.find((network) => {
@@ -349,6 +352,8 @@ module.exports = NodeHelper.create({
     const securityType = this.mapSecurityType(guestNetwork);
     const wifiStandard = await this.mapWiFiStandard(config, guestNetwork);
     const isHidden = Boolean(guestNetwork.hide_ssid || guestNetwork.hidden || guestNetwork.is_hidden);
+
+    console.log("[MMM-UniFiGuestWiFi] DEBUG - Selected network SSID:", ssid, "WiFi Standard:", wifiStandard);
 
     return {
       ssid,
@@ -383,6 +388,10 @@ module.exports = NodeHelper.create({
     const flattenedSignals = JSON.stringify(network || {}).toLowerCase();
     const bands = [];
 
+    // DEBUG: Log the network object to identify available fields
+    console.log("[MMM-UniFiGuestWiFi] DEBUG - Network object keys:", Object.keys(network || {}));
+    console.log("[MMM-UniFiGuestWiFi] DEBUG - Full network object:", JSON.stringify(network, null, 2));
+
     if (Array.isArray(network.wlan_bands)) {
       for (const band of network.wlan_bands) {
         bands.push(String(band).toLowerCase());
@@ -393,6 +402,9 @@ module.exports = NodeHelper.create({
       bands.push(String(network.wlan_band).toLowerCase());
     }
 
+    console.log("[MMM-UniFiGuestWiFi] DEBUG - Detected bands:", bands);
+    console.log("[MMM-UniFiGuestWiFi] DEBUG - mlo_enabled:", network.mlo_enabled, "mloEnabled:", network.mloEnabled);
+
     const has6g = bands.some((band) => band.includes("6g"));
     const mloEnabled = (
       network.mlo_enabled === true ||
@@ -402,26 +414,32 @@ module.exports = NodeHelper.create({
 
     // Most trustworthy indicator for 802.11be in UniFi WLAN config.
     if (mloEnabled || flattenedSignals.includes("11be") || flattenedSignals.includes("wifi7") || flattenedSignals.includes("eht")) {
+      console.log("[MMM-UniFiGuestWiFi] DEBUG - Detected WiFi 7 (mloEnabled:", mloEnabled, ", has 11be/wifi7/eht:", flattenedSignals.includes("11be") || flattenedSignals.includes("wifi7") || flattenedSignals.includes("eht"), ")");
       return "WiFi 7";
     }
 
     // 6 GHz without MLO is typically WiFi 6E in UniFi WLAN definitions.
     if (has6g) {
+      console.log("[MMM-UniFiGuestWiFi] DEBUG - Detected WiFi 6E (has 6g)");
       return "WiFi 6E";
     }
 
     if (flattenedSignals.includes("11ax") || flattenedSignals.includes("wifi6") || flattenedSignals.includes(" he ")) {
+      console.log("[MMM-UniFiGuestWiFi] DEBUG - Detected WiFi 6");
       return "WiFi 6";
     }
 
     if (flattenedSignals.includes("11ac") || flattenedSignals.includes("wifi5") || flattenedSignals.includes("vht")) {
+      console.log("[MMM-UniFiGuestWiFi] DEBUG - Detected WiFi 5");
       return "WiFi 5";
     }
 
     if (flattenedSignals.includes("11n") || flattenedSignals.includes("wifi4") || flattenedSignals.includes("ht")) {
+      console.log("[MMM-UniFiGuestWiFi] DEBUG - Detected WiFi 4");
       return "WiFi 4";
     }
 
+    console.log("[MMM-UniFiGuestWiFi] DEBUG - No WiFi standard detected, returning null");
     return null;
   },
 
