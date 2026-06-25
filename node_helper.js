@@ -330,45 +330,34 @@ module.exports = NodeHelper.create({
   },
 
   async getAPIBasedWiFi(config) {
-    try {
-      const guestNetworks = await this.fetchHotspotOrGuestNetworks(config);
-      if (!guestNetworks || guestNetworks.length === 0) {
-        throw new Error("No hotspot or guest networks found on controller");
-      }
-
-      console.log("[MMM-UniFiGuestWiFi] DEBUG - Found", guestNetworks.length, "guest/hotspot network(s)");
-
-      const preferredSsid = normalizeString(config.ssid, "").toLowerCase();
-      const preferredMatch = preferredSsid
-        ? guestNetworks.find((network) => {
-          const networkSsid = normalizeString(network.name || network.ssid || "", "").toLowerCase();
-          return networkSsid && networkSsid === preferredSsid;
-        })
-        : null;
-
-      const guestNetwork = preferredMatch || guestNetworks[0];
-      const ssid = guestNetwork.name || guestNetwork.ssid || "Guest Network";
-      const password = guestNetwork.passwd || guestNetwork.psk || guestNetwork.passphrase || "";
-      const securityType = this.mapSecurityType(guestNetwork);
-      
-      console.log("[MMM-UniFiGuestWiFi] DEBUG - Mapping WiFi standard for:", ssid);
-      const wifiStandard = await this.mapWiFiStandard(config, guestNetwork);
-      console.log("[MMM-UniFiGuestWiFi] DEBUG - WiFi standard result:", wifiStandard);
-      
-      const isHidden = Boolean(guestNetwork.hide_ssid || guestNetwork.hidden || guestNetwork.is_hidden);
-
-      return {
-        ssid,
-        password: password || null,
-        securityType,
-        wifiStandard,
-        isHidden,
-        qrString: this.generateQRString(ssid, password, securityType, isHidden)
-      };
-    } catch (error) {
-      console.error("[MMM-UniFiGuestWiFi] ERROR in getAPIBasedWiFi:", error.message);
-      throw error;
+    const guestNetworks = await this.fetchHotspotOrGuestNetworks(config);
+    if (!guestNetworks || guestNetworks.length === 0) {
+      throw new Error("No hotspot or guest networks found on controller");
     }
+
+    const preferredSsid = normalizeString(config.ssid, "").toLowerCase();
+    const preferredMatch = preferredSsid
+      ? guestNetworks.find((network) => {
+        const networkSsid = normalizeString(network.name || network.ssid || "", "").toLowerCase();
+        return networkSsid && networkSsid === preferredSsid;
+      })
+      : null;
+
+    const guestNetwork = preferredMatch || guestNetworks[0];
+    const ssid = guestNetwork.name || guestNetwork.ssid || "Guest Network";
+    const password = guestNetwork.passwd || guestNetwork.psk || guestNetwork.passphrase || "";
+    const securityType = this.mapSecurityType(guestNetwork);
+    const wifiStandard = await this.mapWiFiStandard(config, guestNetwork);
+    const isHidden = Boolean(guestNetwork.hide_ssid || guestNetwork.hidden || guestNetwork.is_hidden);
+
+    return {
+      ssid,
+      password: password || null,
+      securityType,
+      wifiStandard,
+      isHidden,
+      qrString: this.generateQRString(ssid, password, securityType, isHidden)
+    };
   },
 
   async mapWiFiStandard(config, network) {
@@ -453,25 +442,20 @@ module.exports = NodeHelper.create({
 
     // UniFi 10.5.51+ moved WiFi standard indicators to AP device capabilities.
     // Always check AP radios to determine WiFi standard, not just for 6g bands.
-    console.log("[MMM-UniFiGuestWiFi] DEBUG - Fetching AP device records for WiFi standard detection...");
     try {
       const apDevices = await this.fetchAPDeviceRecords(config);
-      console.log("[MMM-UniFiGuestWiFi] DEBUG - Fetched", apDevices.length, "AP devices");
       if (!apDevices.length) {
-        console.log("[MMM-UniFiGuestWiFi] DEBUG - No AP devices, returning baseStandard:", baseStandard);
         return baseStandard;
       }
 
       const hasWiFi7CapableAP = apDevices.some((device) => this.isWiFi7CapableDevice(device));
       if (hasWiFi7CapableAP) {
-        console.log("[MMM-UniFiGuestWiFi] DEBUG - Found WiFi 7 capable AP");
         return "WiFi 7";
       }
 
-      console.log("[MMM-UniFiGuestWiFi] DEBUG - No WiFi 7 AP found, returning baseStandard:", baseStandard);
       return baseStandard;
     } catch (error) {
-      console.error("[MMM-UniFiGuestWiFi] ERROR in mapWiFiStandardFromControllerRadios:", error.message);
+      console.warn("[MMM-UniFiGuestWiFi] AP device fetch failed, using base standard:", error.message);
       return baseStandard;
     }
   },
