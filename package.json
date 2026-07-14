@@ -28,7 +28,7 @@
   },
   "devDependencies": {
     "eslint": "^10.7.0",
-    "markdownlint-cli2": "^0.22.1"
+    "markdownlint-cli2": "^0.23.0"
   },
   "bugs": {
     "url": "https://github.com/rroach3753/MMM-UniFiGuestWiFi/issues"
