@@ -442,6 +442,12 @@ Authentication uses session cookies from `POST /api/auth/login` for controller-l
 - Check SSL certificate verification setting (`verifySSL`)
 - Look for errors in MagicMirror logs
 
+**Auto Mode (`authMode: "auto"`):**
+- API fetch is attempted first.
+- If API fetch fails, auto mode falls back to config-mode values.
+- If you do not want fallback behavior, use `authMode: "api"`.
+- If you do want fallback behavior, set explicit fallback values for `ssid` and `password` instead of leaving module defaults.
+
 ### Special Characters Not Working in QR
 
 - SSID text is escaped automatically before QR generation

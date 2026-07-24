@@ -111,6 +111,15 @@ function hasCustomizedFallbackConfig(config) {
   return Boolean(ssid) && !isDefaultPlaceholder;
 }
 
+function hasConfiguredApiAccess(config) {
+  const controllerUrl = normalizeString(config.controllerUrl, "");
+  const apiKey = normalizeString(config.apiKey, "");
+  const username = normalizeString(config.username, "");
+  const password = resolveControllerPassword(config);
+
+  return Boolean(controllerUrl && (apiKey || (username && password)));
+}
+
 module.exports = NodeHelper.create({
   start() {
     this.refreshTimers = {};
@@ -206,6 +215,10 @@ module.exports = NodeHelper.create({
 
           if (authMode === "auto" && hasCustomizedFallbackConfig(normalizedConfig)) {
             wifiData = this.getConfigBasedWiFi(normalizedConfig);
+          } else if (authMode === "auto" && hasConfiguredApiAccess(normalizedConfig)) {
+            throw new Error(
+              `API fetch failed: ${error.message}. In auto mode, either set an explicit fallback SSID/password in config or switch to authMode: \"api\".`
+            );
           } else {
             throw new Error("API fetch failed and fallback config is still using default placeholder values.", { cause: error });
           }
