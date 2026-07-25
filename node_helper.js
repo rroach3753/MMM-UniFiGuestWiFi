@@ -217,7 +217,8 @@ module.exports = NodeHelper.create({
             wifiData = this.getConfigBasedWiFi(normalizedConfig);
           } else if (authMode === "auto" && hasConfiguredApiAccess(normalizedConfig)) {
             throw new Error(
-              `API fetch failed: ${error.message}. In auto mode, either set an explicit fallback SSID/password in config or switch to authMode: \"api\".`
+              `API fetch failed: ${error.message}. In auto mode, either set an explicit fallback SSID/password in config or switch to authMode: "api".`,
+              { cause: error }
             );
           } else {
             throw new Error("API fetch failed and fallback config is still using default placeholder values.", { cause: error });
