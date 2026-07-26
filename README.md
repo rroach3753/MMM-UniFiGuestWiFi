@@ -58,11 +58,9 @@ If you use MMPM:
 mmpm install MMM-UniFiGuestWiFi
 ```
 
-## Configuration
+## Basic Config Example (Quick Start)
 
-Add this to your `config/config.js` file. See examples below for specific scenarios.
-
-### Basic Structure
+Add this module block to your MagicMirror `config/config.js` file to get started:
 
 ```js
 {
@@ -73,6 +71,8 @@ Add this to your `config/config.js` file. See examples below for specific scenar
   },
 },
 ```
+
+Then restart MagicMirror. See examples below for specific scenarios.
 
 ## Screenshots
 
