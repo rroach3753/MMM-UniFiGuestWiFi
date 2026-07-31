@@ -62,12 +62,19 @@ mmpm install MMM-UniFiGuestWiFi
 
 Add this module block to your MagicMirror `config/config.js` file to get started:
 
+1. Install the module in your `MagicMirror/modules` folder.
+2. Paste this module block into the `modules: []` array in `config/config.js`.
+3. Save and restart MagicMirror.
+
 ```js
 {
   module: "MMM-UniFiGuestWiFi",
   position: "top_right",
   config: {
-    // Configuration options here
+    authMode: "config",
+    ssid: "Guest Network",
+    password: "guestpass123",
+    securityType: "WPA2"
   },
 },
 ```
