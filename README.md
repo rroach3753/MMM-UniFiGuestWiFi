@@ -75,7 +75,7 @@ Add this module block to your MagicMirror `config/config.js` file to get started
     ssid: "Guest Network",
     password: "guestpass123",
     securityType: "WPA2"
-  },
+  }
 },
 ```
 
@@ -200,7 +200,7 @@ WiFi standard detection behavior:
     maskPassword: false,
     qrSize: 150,
   },
-}
+},
 ```
 
 ### Example 2: Config Mode - Open Network
@@ -219,7 +219,7 @@ WiFi standard detection behavior:
     title: "Free WiFi",
     layoutVertical: true,
   },
-}
+},
 ```
 
 ### Example 3: Config Mode - Hidden OWE Network with Password Masking
@@ -238,7 +238,7 @@ WiFi standard detection behavior:
     title: "Enterprise Network",
     layoutVertical: false, // Horizontal layout
   },
-}
+},
 ```
 
 ### Example 4: API Mode - Fetch from UniFi Controller
@@ -260,7 +260,7 @@ WiFi standard detection behavior:
     voucherLabel: "Voucher Code",
     includeHotspotPassword: true,
   },
-}
+},
 ```
 
 ### Example 5: Auto Mode with Fallback
@@ -278,7 +278,7 @@ WiFi standard detection behavior:
     verifySSL: true,
     refreshInterval: 300000,
   },
-}
+},
 ```
 
 ### Example 6: API Key Only (No Controller Login)
@@ -296,7 +296,7 @@ WiFi standard detection behavior:
     verifySSL: true,
     refreshInterval: 300000,
   },
-}
+},
 ```
 
 ### Example 7: Controller Username/Password Only
@@ -314,7 +314,7 @@ WiFi standard detection behavior:
     verifySSL: true,
     refreshInterval: 300000,
   },
-}
+},
 ```
 
 ### Example 8: API Key First, Then Login Fallback
@@ -334,7 +334,7 @@ WiFi standard detection behavior:
     verifySSL: true,
     refreshInterval: 300000,
   },
-}
+},
 ```
 
 ## WiFi Security Types
