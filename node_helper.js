@@ -5,6 +5,7 @@ const QRCode = require("qrcode");
 const { URL } = require("node:url");
 
 const DEFAULT_REQUEST_TIMEOUT_MS = 10000;
+const MAX_RESPONSE_BYTES = 1048576;
 
 function normalizeBoolean(value, fallback) {
   if (value === undefined || value === null) {
@@ -280,10 +281,10 @@ module.exports = NodeHelper.create({
       securityType: normalizeString(config.securityType, "WPA").toUpperCase(),
       isHidden: normalizeBoolean(config.isHidden, false),
       controllerUrl: normalizeString(config.controllerUrl, "https://unifi.local"),
-      username: normalizeString(config.username, ""),
-      controllerPassword: normalizeString(config.controllerPassword, normalizeString(config.passwordField, "")),
+      username: normalizeString(process.env.UNIFI_GUEST_WIFI_USERNAME || process.env.UNIFI_USERNAME, normalizeString(config.username, "")),
+      controllerPassword: normalizeString(process.env.UNIFI_GUEST_WIFI_PASSWORD || process.env.UNIFI_PASSWORD, normalizeString(config.controllerPassword, normalizeString(config.passwordField, ""))),
       passwordField: normalizeString(config.passwordField, ""),
-      apiKey: normalizeString(config.apiKey, ""),
+      apiKey: normalizeString(process.env.UNIFI_GUEST_WIFI_API_KEY || process.env.UNIFI_API_KEY, normalizeString(config.apiKey, "")),
       apiKeyHeader: normalizeString(config.apiKeyHeader, "X-API-Key"),
       site: normalizeString(config.site, "default"),
       verifySSL: normalizeBoolean(config.verifySSL, true),
@@ -1007,12 +1008,24 @@ module.exports = NodeHelper.create({
         },
         (response) => {
           let raw = "";
+          let bodyLength = 0;
+          let limitExceeded = false;
 
           response.on("data", (chunk) => {
+            bodyLength += chunk.length;
+            if (bodyLength > MAX_RESPONSE_BYTES) {
+              limitExceeded = true;
+              request.destroy(new Error("Response body exceeded 1 MB limit"));
+              return;
+            }
             raw += chunk;
           });
 
           response.on("end", () => {
+            if (limitExceeded) {
+              return;
+            }
+
             if (response.statusCode < 200 || response.statusCode >= 300) {
               const error = new Error(`HTTP ${response.statusCode}: ${raw.slice(0, 200)}`);
               error.statusCode = response.statusCode;

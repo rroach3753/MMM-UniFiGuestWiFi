@@ -524,6 +524,16 @@ export NODE_EXTRA_CA_CERTS=~/.config/controller-ca.pem
 
 ## Security
 
+For API/controller mode, set secrets in the MagicMirror process environment and omit them from `config.js`:
+
+```bash
+export UNIFI_GUEST_WIFI_API_KEY="your_api_key"
+export UNIFI_GUEST_WIFI_USERNAME="your_username"
+export UNIFI_GUEST_WIFI_PASSWORD="your_password"
+```
+
+The module-specific variables take precedence over renderer configuration. `UNIFI_API_KEY`, `UNIFI_USERNAME`, and `UNIFI_PASSWORD` are also supported as shared fallbacks.
+
 Recommended production settings:
 
 ```js

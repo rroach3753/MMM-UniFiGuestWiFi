@@ -11,6 +11,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Frontend defaults now favor safer mirror displays: `showPassword: false`, `maskPassword: true`, and `includeHotspotPassword: false`.
 - Added instance-scoped socket payload routing (`instanceId`) between module frontend and node helper to reduce cross-instance data leakage.
 - Updated the `brace-expansion` override to 5.0.9 to address a denial-of-service vulnerability.
+- Updated the `smol-toml` override to 1.8.0 to address a development-tool denial-of-service vulnerability.
+- Limited UniFi controller responses to 1 MB.
+- Added server-only environment variable support for UniFi credentials and API keys.
 
 ### Changed
 
