@@ -28,7 +28,7 @@
     "qrcode": "^1.5.4"
   },
   "devDependencies": {
-    "eslint": "^10.9.1",
+    "eslint": "^10.10.0",
     "markdownlint-cli2": "^0.23.2"
   },
   "overrides": {

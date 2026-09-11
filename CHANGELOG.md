@@ -19,7 +19,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - Refresh timer keying now includes instance identity to avoid collisions across multiple module instances.
 - Updated README configuration examples to be directly pasteable into the MagicMirror modules array.
-- Updated ESLint to 10.8.1.
+- Updated ESLint to 10.10.0.
 
 ### Added
 
