@@ -40,6 +40,25 @@ function normalizeString(value, fallback) {
   return text || fallback;
 }
 
+function normalizeServerOrigin(value, variableName) {
+  let parsed;
+
+  try {
+    parsed = new URL(value);
+  } catch {
+    throw new Error(`${variableName} must be a valid HTTP(S) origin.`);
+  }
+
+  if (!["http:", "https:"].includes(parsed.protocol) ||
+      parsed.username || parsed.password ||
+      (parsed.pathname && parsed.pathname !== "/") ||
+      parsed.search || parsed.hash) {
+    throw new Error(`${variableName} must be an HTTP(S) origin without a path, query, or credentials.`);
+  }
+
+  return parsed.origin;
+}
+
 function limitUtf8Bytes(value, maxBytes) {
   const text = String(value == null ? "" : value);
   let result = "";
@@ -196,8 +215,10 @@ module.exports = NodeHelper.create({
   },
 
   async handleConfig(config) {
-    const normalizedConfig = this.normalizeConfig(config || {});
-    const authMode = normalizedConfig.authMode;
+    let normalizedConfig = {
+      instanceId: normalizeString(config && config.instanceId, "")
+    };
+    let authMode;
     let wifiData;
     let voucherData = {
       voucherCode: null,
@@ -206,6 +227,9 @@ module.exports = NodeHelper.create({
     };
 
     try {
+      normalizedConfig = this.normalizeConfig(config || {});
+      authMode = normalizedConfig.authMode;
+
       if (authMode === "config") {
         wifiData = this.getConfigBasedWiFi(normalizedConfig);
       } else {
@@ -274,17 +298,31 @@ module.exports = NodeHelper.create({
   },
 
   normalizeConfig(config) {
+    const serverUsername = normalizeString(process.env.UNIFI_GUEST_WIFI_USERNAME || process.env.UNIFI_USERNAME, "");
+    const serverPassword = normalizeString(process.env.UNIFI_GUEST_WIFI_PASSWORD || process.env.UNIFI_PASSWORD, "");
+    const serverApiKey = normalizeString(process.env.UNIFI_GUEST_WIFI_API_KEY || process.env.UNIFI_API_KEY, "");
+    const hasServerCredentials = Boolean(serverUsername || serverPassword || serverApiKey);
+    let controllerUrl = normalizeString(config.controllerUrl, "https://unifi.local");
+
+    if (hasServerCredentials) {
+      const serverUrl = normalizeString(process.env.UNIFI_GUEST_WIFI_URL || process.env.UNIFI_URL, "");
+      if (!serverUrl) {
+        throw new Error("UNIFI_GUEST_WIFI_URL or UNIFI_URL is required when server-side UniFi credentials are configured.");
+      }
+      controllerUrl = normalizeServerOrigin(serverUrl, "UNIFI_GUEST_WIFI_URL");
+    }
+
     return {
       authMode: normalizeString(config.authMode, "config").toLowerCase(),
       ssid: normalizeString(config.ssid, "Guest Network"),
       password: normalizeString(config.password, ""),
       securityType: normalizeString(config.securityType, "WPA").toUpperCase(),
       isHidden: normalizeBoolean(config.isHidden, false),
-      controllerUrl: normalizeString(config.controllerUrl, "https://unifi.local"),
-      username: normalizeString(process.env.UNIFI_GUEST_WIFI_USERNAME || process.env.UNIFI_USERNAME, normalizeString(config.username, "")),
-      controllerPassword: normalizeString(process.env.UNIFI_GUEST_WIFI_PASSWORD || process.env.UNIFI_PASSWORD, normalizeString(config.controllerPassword, normalizeString(config.passwordField, ""))),
+      controllerUrl,
+      username: hasServerCredentials ? serverUsername : normalizeString(config.username, ""),
+      controllerPassword: hasServerCredentials ? serverPassword : normalizeString(config.controllerPassword, normalizeString(config.passwordField, "")),
       passwordField: normalizeString(config.passwordField, ""),
-      apiKey: normalizeString(process.env.UNIFI_GUEST_WIFI_API_KEY || process.env.UNIFI_API_KEY, normalizeString(config.apiKey, "")),
+      apiKey: hasServerCredentials ? serverApiKey : normalizeString(config.apiKey, ""),
       apiKeyHeader: normalizeString(config.apiKeyHeader, "X-API-Key"),
       site: normalizeString(config.site, "default"),
       verifySSL: normalizeBoolean(config.verifySSL, true),

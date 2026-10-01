@@ -530,9 +530,10 @@ For API/controller mode, set secrets in the MagicMirror process environment and 
 export UNIFI_GUEST_WIFI_API_KEY="your_api_key"
 export UNIFI_GUEST_WIFI_USERNAME="your_username"
 export UNIFI_GUEST_WIFI_PASSWORD="your_password"
+export UNIFI_GUEST_WIFI_URL="https://unifi.local"
 ```
 
-The module-specific variables take precedence over renderer configuration. `UNIFI_API_KEY`, `UNIFI_USERNAME`, and `UNIFI_PASSWORD` are also supported as shared fallbacks.
+The trusted server URL is required when server-side credentials are configured and must be an HTTP(S) origin without a path, query, or embedded credentials. The module-specific variables take precedence over renderer configuration. `UNIFI_URL`, `UNIFI_API_KEY`, `UNIFI_USERNAME`, and `UNIFI_PASSWORD` are also supported as shared fallbacks.
 
 Recommended production settings:
 

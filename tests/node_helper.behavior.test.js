@@ -81,12 +81,15 @@ test("server UniFi credentials take precedence over renderer config", () => {
   const previousUsername = process.env.UNIFI_GUEST_WIFI_USERNAME;
   const previousPassword = process.env.UNIFI_GUEST_WIFI_PASSWORD;
   const previousApiKey = process.env.UNIFI_GUEST_WIFI_API_KEY;
+  const previousUrl = process.env.UNIFI_GUEST_WIFI_URL;
   process.env.UNIFI_GUEST_WIFI_USERNAME = "server-user";
   process.env.UNIFI_GUEST_WIFI_PASSWORD = "server-password";
   process.env.UNIFI_GUEST_WIFI_API_KEY = "server-key";
+  process.env.UNIFI_GUEST_WIFI_URL = "https://trusted.example:8443";
 
   try {
     const config = helper.normalizeConfig({
+      controllerUrl: "https://attacker.example",
       username: "renderer-user",
       controllerPassword: "renderer-password",
       apiKey: "renderer-key"
@@ -95,11 +98,42 @@ test("server UniFi credentials take precedence over renderer config", () => {
     assert.equal(config.username, "server-user");
     assert.equal(config.controllerPassword, "server-password");
     assert.equal(config.apiKey, "server-key");
+    assert.equal(config.controllerUrl, "https://trusted.example:8443");
   } finally {
     const values = {
       UNIFI_GUEST_WIFI_USERNAME: previousUsername,
       UNIFI_GUEST_WIFI_PASSWORD: previousPassword,
-      UNIFI_GUEST_WIFI_API_KEY: previousApiKey
+      UNIFI_GUEST_WIFI_API_KEY: previousApiKey,
+      UNIFI_GUEST_WIFI_URL: previousUrl
+    };
+    Object.entries(values).forEach(([name, value]) => {
+      if (value === undefined) {
+        delete process.env[name];
+      } else {
+        process.env[name] = value;
+      }
+    });
+  }
+});
+
+test("server UniFi credentials require a trusted server URL", () => {
+  const previousUsername = process.env.UNIFI_GUEST_WIFI_USERNAME;
+  const previousUrl = process.env.UNIFI_GUEST_WIFI_URL;
+  const previousSharedUrl = process.env.UNIFI_URL;
+  process.env.UNIFI_GUEST_WIFI_USERNAME = "server-user";
+  delete process.env.UNIFI_GUEST_WIFI_URL;
+  delete process.env.UNIFI_URL;
+
+  try {
+    assert.throws(
+      () => helper.normalizeConfig({ controllerUrl: "https://attacker.example" }),
+      /UNIFI_GUEST_WIFI_URL or UNIFI_URL is required/
+    );
+  } finally {
+    const values = {
+      UNIFI_GUEST_WIFI_USERNAME: previousUsername,
+      UNIFI_GUEST_WIFI_URL: previousUrl,
+      UNIFI_URL: previousSharedUrl
     };
     Object.entries(values).forEach(([name, value]) => {
       if (value === undefined) {
