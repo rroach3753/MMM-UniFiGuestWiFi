@@ -5,6 +5,9 @@ const QRCode = require("qrcode");
 const { URL } = require("node:url");
 
 const DEFAULT_REQUEST_TIMEOUT_MS = 10000;
+const DEFAULT_REFRESH_INTERVAL_MS = 300000;
+const MIN_REFRESH_INTERVAL_MS = 60000;
+const MAX_REFRESH_INTERVAL_MS = 86400000;
 const MAX_RESPONSE_BYTES = 1048576;
 
 function normalizeBoolean(value, fallback) {
@@ -35,6 +38,12 @@ function normalizeNumber(value, fallback) {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+function normalizeClampedInteger(value, fallback, minimum, maximum) {
+  const parsed = Number(value);
+  const integer = Number.isFinite(parsed) ? Math.trunc(parsed) : fallback;
+  return Math.min(maximum, Math.max(minimum, integer));
+}
+
 function normalizeString(value, fallback) {
   const text = String(value == null ? "" : value).trim();
   return text || fallback;
@@ -57,6 +66,26 @@ function normalizeServerOrigin(value, variableName) {
   }
 
   return parsed.origin;
+}
+
+function getServerControllerConfig() {
+  const controllerUrl = normalizeString(process.env.UNIFI_GUEST_WIFI_URL || process.env.UNIFI_URL, "");
+
+  return {
+    controllerUrl: controllerUrl ? normalizeServerOrigin(controllerUrl, "UNIFI_GUEST_WIFI_URL") : "",
+    username: normalizeString(process.env.UNIFI_GUEST_WIFI_USERNAME || process.env.UNIFI_USERNAME, ""),
+    controllerPassword: normalizeString(process.env.UNIFI_GUEST_WIFI_PASSWORD || process.env.UNIFI_PASSWORD, ""),
+    apiKey: normalizeString(process.env.UNIFI_GUEST_WIFI_API_KEY || process.env.UNIFI_API_KEY, ""),
+    apiKeyHeader: normalizeString(process.env.UNIFI_GUEST_WIFI_API_KEY_HEADER || process.env.UNIFI_API_KEY_HEADER, "X-API-Key")
+  };
+}
+
+function getSanitizedControllerError(error, fallback) {
+  if (error && Number.isInteger(error.statusCode)) {
+    return `UniFi controller request failed (HTTP ${error.statusCode}).`;
+  }
+
+  return fallback;
 }
 
 function limitUtf8Bytes(value, maxBytes) {
@@ -236,13 +265,16 @@ module.exports = NodeHelper.create({
         try {
           wifiData = await this.getAPIBasedWiFi(normalizedConfig);
         } catch (error) {
-          console.error("[MMM-UniFiGuestWiFi] API fetch failed:", error.message);
+          console.error(
+            "[MMM-UniFiGuestWiFi] API fetch failed:",
+            getSanitizedControllerError(error, "Unable to retrieve WiFi details from the controller.")
+          );
 
           if (authMode === "auto" && hasCustomizedFallbackConfig(normalizedConfig)) {
             wifiData = this.getConfigBasedWiFi(normalizedConfig);
           } else if (authMode === "auto" && hasConfiguredApiAccess(normalizedConfig)) {
             throw new Error(
-              `API fetch failed: ${error.message}. In auto mode, either set an explicit fallback SSID/password in config or switch to authMode: "api".`,
+              "API fetch failed. In auto mode, either set an explicit fallback SSID/password in config or switch to authMode: \"api\".",
               { cause: error }
             );
           } else {
@@ -273,6 +305,14 @@ module.exports = NodeHelper.create({
         error: null
       };
 
+      if (!normalizedConfig.showPassword) {
+        delete response.password;
+      }
+
+      if (!normalizedConfig.includeHotspotPassword) {
+        delete response.hotspotPassword;
+      }
+
       console.log(
         "[MMM-UniFiGuestWiFi] Sending data - SSID:",
         response.ssid,
@@ -285,51 +325,65 @@ module.exports = NodeHelper.create({
       this.sendSocketNotification("UNIFI_GUESTWIFI_DATA", response);
 
       if (authMode === "api" || authMode === "auto") {
-        const refreshInterval = normalizeNumber(normalizedConfig.refreshInterval, 300000);
-        this.scheduleRefresh(normalizedConfig, refreshInterval);
+        this.scheduleRefresh(normalizedConfig, normalizedConfig.refreshInterval);
+      } else {
+        this.clearRefreshTimer(normalizedConfig.instanceId);
       }
     } catch (error) {
-      console.error("[MMM-UniFiGuestWiFi] Error handling config:", error);
+      const sanitizedError = getSanitizedControllerError(
+        error,
+        "Unable to retrieve UniFi guest WiFi details."
+      );
+      console.error("[MMM-UniFiGuestWiFi] Error handling config:", sanitizedError);
       this.sendSocketNotification("UNIFI_GUESTWIFI_ERROR", {
         instanceId: normalizedConfig.instanceId || null,
-        error: error.message || "Failed to retrieve WiFi details"
+        error: sanitizedError
       });
     }
   },
 
   normalizeConfig(config) {
-    const serverUsername = normalizeString(process.env.UNIFI_GUEST_WIFI_USERNAME || process.env.UNIFI_USERNAME, "");
-    const serverPassword = normalizeString(process.env.UNIFI_GUEST_WIFI_PASSWORD || process.env.UNIFI_PASSWORD, "");
-    const serverApiKey = normalizeString(process.env.UNIFI_GUEST_WIFI_API_KEY || process.env.UNIFI_API_KEY, "");
-    const hasServerCredentials = Boolean(serverUsername || serverPassword || serverApiKey);
-    let controllerUrl = normalizeString(config.controllerUrl, "https://unifi.local");
+    const authMode = normalizeString(config.authMode, "config").toLowerCase();
+    const serverController = getServerControllerConfig();
+    const hasServerCredentials = Boolean(
+      serverController.username ||
+      serverController.controllerPassword ||
+      serverController.apiKey
+    );
 
-    if (hasServerCredentials) {
-      const serverUrl = normalizeString(process.env.UNIFI_GUEST_WIFI_URL || process.env.UNIFI_URL, "");
-      if (!serverUrl) {
-        throw new Error("UNIFI_GUEST_WIFI_URL or UNIFI_URL is required when server-side UniFi credentials are configured.");
-      }
-      controllerUrl = normalizeServerOrigin(serverUrl, "UNIFI_GUEST_WIFI_URL");
+    if (hasServerCredentials && !serverController.controllerUrl) {
+      throw new Error("UNIFI_GUEST_WIFI_URL or UNIFI_URL is required when server-side UniFi credentials are configured.");
+    }
+
+    if (authMode === "api" && !serverController.controllerUrl) {
+      throw new Error("UNIFI_GUEST_WIFI_URL or UNIFI_URL is required in API mode.");
     }
 
     return {
-      authMode: normalizeString(config.authMode, "config").toLowerCase(),
+      authMode,
       ssid: normalizeString(config.ssid, "Guest Network"),
       password: normalizeString(config.password, ""),
       securityType: normalizeString(config.securityType, "WPA").toUpperCase(),
       isHidden: normalizeBoolean(config.isHidden, false),
-      controllerUrl,
-      username: hasServerCredentials ? serverUsername : normalizeString(config.username, ""),
-      controllerPassword: hasServerCredentials ? serverPassword : normalizeString(config.controllerPassword, normalizeString(config.passwordField, "")),
-      passwordField: normalizeString(config.passwordField, ""),
-      apiKey: hasServerCredentials ? serverApiKey : normalizeString(config.apiKey, ""),
-      apiKeyHeader: normalizeString(config.apiKeyHeader, "X-API-Key"),
+      controllerUrl: serverController.controllerUrl,
+      username: serverController.username,
+      controllerPassword: serverController.controllerPassword,
+      passwordField: "",
+      apiKey: serverController.apiKey,
+      apiKeyHeader: serverController.apiKeyHeader,
       site: normalizeString(config.site, "default"),
       verifySSL: normalizeBoolean(config.verifySSL, true),
       requestTimeout: Math.max(1000, normalizeNumber(config.requestTimeout, DEFAULT_REQUEST_TIMEOUT_MS)),
-      refreshInterval: normalizeNumber(config.refreshInterval, 300000),
+      refreshInterval: normalizeClampedInteger(
+        config.refreshInterval,
+        DEFAULT_REFRESH_INTERVAL_MS,
+        MIN_REFRESH_INTERVAL_MS,
+        MAX_REFRESH_INTERVAL_MS
+      ),
       enhancedWiFiStandardDetection: normalizeBoolean(config.enhancedWiFiStandardDetection, true),
       maskPassword: normalizeBoolean(config.maskPassword, false),
+      showPassword: normalizeBoolean(config.showPassword, false),
+      includeHotspotPassword: normalizeBoolean(config.includeHotspotPassword, false),
       instanceId: normalizeString(config.instanceId, "")
     };
   },
@@ -352,8 +406,7 @@ module.exports = NodeHelper.create({
     };
   },
 
-  generateQRString(ssid, _password, securityType) {
-
+  generateQRString(ssid, _password, securityType, isHidden) {
     // Captive portal flow: encode only network join metadata.
     const limitedSSID = limitUtf8Bytes(ssid, 32);
     const escaped = limitedSSID
@@ -367,7 +420,8 @@ module.exports = NodeHelper.create({
       qrSecurityType = "OWE";
     }
 
-    return `WIFI:S:${escaped};T:${qrSecurityType};;`;
+    const hiddenField = isHidden ? "H:true;" : "";
+    return `WIFI:S:${escaped};T:${qrSecurityType};${hiddenField};`;
   },
 
   async generateQRImageDataUrl(qrText) {
@@ -1013,7 +1067,12 @@ module.exports = NodeHelper.create({
   },
 
   async requestJson(method, config, path, body, extraHeaders, authOptions) {
-    const url = new URL(path, config.controllerUrl);
+    const controllerOrigin = normalizeServerOrigin(config.controllerUrl, "Trusted controller URL");
+    const url = new URL(path, controllerOrigin);
+    if (url.origin !== controllerOrigin) {
+      throw new Error("Controller request destination did not match the trusted server origin.");
+    }
+
     const transport = url.protocol === "http:" ? http : https;
     const requestBody = body ? JSON.stringify(body) : "";
     const headers = Object.assign({}, extraHeaders || {});
@@ -1065,9 +1124,8 @@ module.exports = NodeHelper.create({
             }
 
             if (response.statusCode < 200 || response.statusCode >= 300) {
-              const error = new Error(`HTTP ${response.statusCode}: ${raw.slice(0, 200)}`);
+              const error = new Error(`HTTP ${response.statusCode}`);
               error.statusCode = response.statusCode;
-              error.responseBody = raw;
               reject(error);
               return;
             }
@@ -1139,7 +1197,9 @@ module.exports = NodeHelper.create({
         };
       }
 
-      const hotspotPassword = await this.fetchHotspotPassword(config);
+      const hotspotPassword = config.includeHotspotPassword
+        ? await this.fetchHotspotPassword(config)
+        : null;
 
       return {
         voucherCode: null,
@@ -1311,13 +1371,13 @@ module.exports = NodeHelper.create({
   },
 
   scheduleRefresh(config, interval) {
-    const configKey = JSON.stringify({
-      instanceId: config.instanceId,
-      url: config.controllerUrl,
-      site: config.site,
-      authMode: config.authMode,
-      ssid: config.ssid
-    });
+    const configKey = normalizeString(config.instanceId, "default");
+    const safeInterval = normalizeClampedInteger(
+      interval,
+      DEFAULT_REFRESH_INTERVAL_MS,
+      MIN_REFRESH_INTERVAL_MS,
+      MAX_REFRESH_INTERVAL_MS
+    );
 
     if (this.refreshTimers[configKey]) {
       clearInterval(this.refreshTimers[configKey]);
@@ -1325,9 +1385,17 @@ module.exports = NodeHelper.create({
 
     this.refreshTimers[configKey] = setInterval(() => {
       this.handleConfig(config);
-    }, interval);
+    }, safeInterval);
 
-    console.log(`[MMM-UniFiGuestWiFi] Scheduled refresh every ${interval}ms`);
+    console.log(`[MMM-UniFiGuestWiFi] Scheduled refresh every ${safeInterval}ms`);
+  },
+
+  clearRefreshTimer(instanceId) {
+    const configKey = normalizeString(instanceId, "default");
+    if (this.refreshTimers[configKey]) {
+      clearInterval(this.refreshTimers[configKey]);
+      delete this.refreshTimers[configKey];
+    }
   },
 
   stop() {

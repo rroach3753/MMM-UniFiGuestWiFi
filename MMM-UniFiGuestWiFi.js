@@ -7,12 +7,6 @@ Module.register("MMM-UniFiGuestWiFi", {
     password: "guestpass123",
     securityType: "WPA",
     isHidden: false,
-    controllerUrl: "https://unifi.local",
-    username: "",
-    controllerPassword: "",
-    passwordField: "",
-    apiKey: "",
-    apiKeyHeader: "X-API-Key",
     site: "default",
     verifySSL: true,
     requestTimeout: 10000,
@@ -64,10 +58,7 @@ Module.register("MMM-UniFiGuestWiFi", {
   requestBackendData: function () {
     var self = this;
 
-    this.sendSocketNotification("UNIFI_GUESTWIFI_CONFIG", {
-      ...this.config,
-      instanceId: this.instanceId
-    });
+    this.sendSocketNotification("UNIFI_GUESTWIFI_CONFIG", this.getBackendConfig());
 
     if (this.configRetryTimer) {
       clearTimeout(this.configRetryTimer);
@@ -83,6 +74,29 @@ Module.register("MMM-UniFiGuestWiFi", {
         self.updateDom(300);
       }
     }, 5000);
+  },
+
+  getBackendConfig: function () {
+    var backendConfig = {
+      authMode: this.config.authMode,
+      ssid: this.config.ssid,
+      securityType: this.config.securityType,
+      isHidden: this.config.isHidden,
+      site: this.config.site,
+      verifySSL: this.config.verifySSL,
+      requestTimeout: this.config.requestTimeout,
+      refreshInterval: this.config.refreshInterval,
+      enhancedWiFiStandardDetection: this.config.enhancedWiFiStandardDetection,
+      showPassword: this.config.showPassword,
+      includeHotspotPassword: this.config.includeHotspotPassword,
+      instanceId: this.instanceId
+    };
+
+    if (this.config.authMode === "config" || this.config.authMode === "auto") {
+      backendConfig.password = this.config.password;
+    }
+
+    return backendConfig;
   },
 
   getScripts: function () {

@@ -13,11 +13,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Updated the `brace-expansion` override to 5.0.9 to address a denial-of-service vulnerability.
 - Updated the `smol-toml` override to 1.8.0 to address a development-tool denial-of-service vulnerability.
 - Limited UniFi controller responses to 1 MB.
-- Added server-only environment variable support for UniFi credentials and API keys.
+- Made the canonical controller origin, credentials, API keys, and API key
+  header server-only environment settings; renderer-supplied destinations and
+  controller authentication fields are ignored.
+- Controller HTTP failures now expose only sanitized status information, never
+  response bodies.
+- Password fields are returned to the renderer only when their corresponding
+  display option is enabled.
 
 ### Changed
 
-- Refresh timer keying now includes instance identity to avoid collisions across multiple module instances.
+- Refresh timers are keyed only by stable instance identity and replaced when
+  mutable configuration changes.
+- Refresh intervals are normalized to finite integers and clamped to 1
+  minute–24 hours.
 - Updated README configuration examples to be directly pasteable into the MagicMirror modules array.
 - Updated ESLint to 10.10.0.
 - Updated the transitive development dependency `fastq` to 1.20.3.
@@ -48,6 +57,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Fixed false WiFi 7 positives in enhanced detection from loose text matching.
 - Fixed perpetual loading condition by surfacing a clear UI error after retries are exhausted.
 - Fixed voucher card left accent line styling artifact.
+- Fixed hidden-network QR payloads by including the standard `H:true` field.
 
 ### Removed
 

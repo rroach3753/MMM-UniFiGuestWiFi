@@ -120,24 +120,23 @@ hides the portal password fallback.
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `controllerUrl` | string | `"https://unifi.local"` | UniFi controller URL |
-| `apiKey` | string | `""` | UniFi API key (if using API key auth) |
-| `apiKeyHeader` | string | `"X-API-Key"` | Header name for API key |
-| `username` | string | `""` | UniFi OS username |
-| `controllerPassword` | string | `""` | UniFi OS password (preferred field name) |
-| `passwordField` | string | `""` | Legacy alias for UniFi OS password (still supported) |
 | `site` | string | `"default"` | UniFi site name |
 | `verifySSL` | boolean | `true` | Verify SSL certificates (recommended) |
 | `requestTimeout` | number | `10000` | HTTP request timeout in milliseconds |
-| `refreshInterval` | number | `300000` | Data refresh interval in milliseconds (5 minutes) |
+| `refreshInterval` | number | `300000` | Data refresh interval in milliseconds; finite integers are clamped to 60000–86400000 (1 minute–24 hours) |
 | `enhancedWiFiStandardDetection` | boolean | `true` | Use AP capability data (`stat/device`) to improve WiFi generation badging |
 
 Authentication behavior in API mode:
 
-- If `apiKey` is set, the module tries API key authentication first.
-- If API key does not return usable data and `username` + `controllerPassword`
-  are set, it falls back to controller login.
-- If API key is not set, it uses `username` + `controllerPassword` directly.
+- Controller URL and authentication are server-only environment settings; values
+  in `config.js` are ignored and are never sent over the module socket.
+- If `UNIFI_GUEST_WIFI_API_KEY` is set, the helper tries API key authentication
+  first.
+- If the API key does not return usable data and
+  `UNIFI_GUEST_WIFI_USERNAME` + `UNIFI_GUEST_WIFI_PASSWORD` are set, it falls
+  back to controller login.
+- `UNIFI_GUEST_WIFI_URL` is required for API mode and is validated as one
+  canonical HTTP(S) origin.
 
 WiFi standard detection behavior:
 
@@ -245,15 +244,21 @@ WiFi standard detection behavior:
 
 ### Example 4: API Mode - Fetch from UniFi Controller
 
+Set the controller origin and credentials in the environment that starts
+MagicMirror, then use this renderer configuration:
+
+```bash
+export UNIFI_GUEST_WIFI_URL="https://unifi.local"
+export UNIFI_GUEST_WIFI_USERNAME="admin"
+export UNIFI_GUEST_WIFI_PASSWORD="your_unifi_password"
+```
+
 ```js
 {
   module: "MMM-UniFiGuestWiFi",
   position: "top_right",
   config: {
     authMode: "api",
-    controllerUrl: "https://unifi.local",
-    username: "admin",
-    controllerPassword: "your_unifi_password",
     site: "default",
     verifySSL: true,
     refreshInterval: 300000,
@@ -273,9 +278,9 @@ WiFi standard detection behavior:
   position: "top_right",
   config: {
     authMode: "auto", // Try API, fall back to config on failure
-    controllerUrl: "https://unifi.local",
-    username: "admin",
-    controllerPassword: "your_unifi_password",
+    ssid: "Fallback Guest Network",
+    password: "fallback_wifi_password",
+    securityType: "WPA2",
     site: "default",
     verifySSL: true,
     refreshInterval: 300000,
@@ -285,15 +290,17 @@ WiFi standard detection behavior:
 
 ### Example 6: API Key Only (No Controller Login)
 
+```bash
+export UNIFI_GUEST_WIFI_URL="https://unifi.local"
+export UNIFI_GUEST_WIFI_API_KEY="YOUR_UNIFI_API_KEY"
+```
+
 ```js
 {
   module: "MMM-UniFiGuestWiFi",
   position: "top_right",
   config: {
     authMode: "api",
-    controllerUrl: "https://unifi.local",
-    apiKey: "YOUR_UNIFI_API_KEY",
-    apiKeyHeader: "X-API-Key",
     site: "default",
     verifySSL: true,
     refreshInterval: 300000,
@@ -303,15 +310,14 @@ WiFi standard detection behavior:
 
 ### Example 7: Controller Username/Password Only
 
+Use the environment variables shown in Example 4.
+
 ```js
 {
   module: "MMM-UniFiGuestWiFi",
   position: "top_right",
   config: {
     authMode: "api",
-    controllerUrl: "https://unifi.local",
-    username: "admin",
-    controllerPassword: "your_unifi_password",
     site: "default",
     verifySSL: true,
     refreshInterval: 300000,
@@ -321,17 +327,19 @@ WiFi standard detection behavior:
 
 ### Example 8: API Key First, Then Login Fallback
 
+```bash
+export UNIFI_GUEST_WIFI_URL="https://unifi.local"
+export UNIFI_GUEST_WIFI_API_KEY="YOUR_UNIFI_API_KEY"
+export UNIFI_GUEST_WIFI_USERNAME="admin"
+export UNIFI_GUEST_WIFI_PASSWORD="your_unifi_password"
+```
+
 ```js
 {
   module: "MMM-UniFiGuestWiFi",
   position: "top_right",
   config: {
     authMode: "auto",
-    controllerUrl: "https://unifi.local",
-    apiKey: "YOUR_UNIFI_API_KEY",
-    apiKeyHeader: "X-API-Key",
-    username: "admin",
-    controllerPassword: "your_unifi_password",
     site: "default",
     verifySSL: true,
     refreshInterval: 300000,
@@ -524,16 +532,44 @@ export NODE_EXTRA_CA_CERTS=~/.config/controller-ca.pem
 
 ## Security
 
-For API/controller mode, set secrets in the MagicMirror process environment and omit them from `config.js`:
+For API/controller mode, set the trusted origin and secrets in the MagicMirror
+process environment. They are server-only and must not be placed in `config.js`:
 
 ```bash
 export UNIFI_GUEST_WIFI_API_KEY="your_api_key"
 export UNIFI_GUEST_WIFI_USERNAME="your_username"
 export UNIFI_GUEST_WIFI_PASSWORD="your_password"
 export UNIFI_GUEST_WIFI_URL="https://unifi.local"
+# Optional when the controller uses a non-default API key header:
+export UNIFI_GUEST_WIFI_API_KEY_HEADER="X-API-Key"
 ```
 
-The trusted server URL is required when server-side credentials are configured and must be an HTTP(S) origin without a path, query, or embedded credentials. The module-specific variables take precedence over renderer configuration. `UNIFI_URL`, `UNIFI_API_KEY`, `UNIFI_USERNAME`, and `UNIFI_PASSWORD` are also supported as shared fallbacks.
+The trusted server URL is required in API mode and whenever server-side
+credentials are configured. It must be an HTTP(S) origin without a path,
+query, or embedded credentials. `UNIFI_URL`, `UNIFI_API_KEY`,
+`UNIFI_API_KEY_HEADER`, `UNIFI_USERNAME`, and `UNIFI_PASSWORD` are supported as
+shared fallbacks.
+
+### Migration from controller settings in config.js
+
+Controller settings in `config.js` are no longer accepted. This prevents a
+renderer or socket client from selecting an arbitrary request destination and
+keeps controller credentials out of browser memory and socket payloads.
+
+1. Move `controllerUrl` to `UNIFI_GUEST_WIFI_URL`.
+2. Move `apiKey` to `UNIFI_GUEST_WIFI_API_KEY`, or move `username` and
+   `controllerPassword`/`passwordField` to `UNIFI_GUEST_WIFI_USERNAME` and
+   `UNIFI_GUEST_WIFI_PASSWORD`.
+3. If needed, move `apiKeyHeader` to
+   `UNIFI_GUEST_WIFI_API_KEY_HEADER`.
+4. Remove those six controller fields from the module block and restart the
+   entire MagicMirror process so the helper receives the environment.
+
+The config-mode `password` remains a WiFi credential, not a controller
+credential. It is still sent to the helper in `config`/`auto` mode so backend
+QR generation continues to work, but the helper returns WiFi or hotspot
+password fields to the renderer only when `showPassword` or
+`includeHotspotPassword` explicitly requests display.
 
 Recommended production settings:
 
