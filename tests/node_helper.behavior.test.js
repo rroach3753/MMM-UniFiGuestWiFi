@@ -116,6 +116,39 @@ test("server UniFi credentials take precedence over renderer config", () => {
   }
 });
 
+test("server UniFi login and API-key authentication reject plaintext HTTP", () => {
+  const environmentNames = [
+    "UNIFI_GUEST_WIFI_URL",
+    "UNIFI_GUEST_WIFI_USERNAME",
+    "UNIFI_GUEST_WIFI_PASSWORD",
+    "UNIFI_GUEST_WIFI_API_KEY"
+  ];
+  const previousValues = Object.fromEntries(
+    environmentNames.map((name) => [name, process.env[name]])
+  );
+  process.env.UNIFI_GUEST_WIFI_URL = "http://unifi.local";
+
+  try {
+    process.env.UNIFI_GUEST_WIFI_USERNAME = "server-user";
+    process.env.UNIFI_GUEST_WIFI_PASSWORD = "server-password";
+    delete process.env.UNIFI_GUEST_WIFI_API_KEY;
+    assert.throws(() => helper.normalizeConfig({}), /HTTPS origin/);
+
+    delete process.env.UNIFI_GUEST_WIFI_USERNAME;
+    delete process.env.UNIFI_GUEST_WIFI_PASSWORD;
+    process.env.UNIFI_GUEST_WIFI_API_KEY = "server-key";
+    assert.throws(() => helper.normalizeConfig({}), /HTTPS origin/);
+  } finally {
+    Object.entries(previousValues).forEach(([name, value]) => {
+      if (value === undefined) {
+        delete process.env[name];
+      } else {
+        process.env[name] = value;
+      }
+    });
+  }
+});
+
 test("renderer controller destinations and credentials are never trusted", () => {
   const environmentNames = [
     "UNIFI_GUEST_WIFI_USERNAME",

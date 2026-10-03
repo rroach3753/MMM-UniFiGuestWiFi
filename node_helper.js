@@ -1,5 +1,4 @@
 const NodeHelper = require("node_helper");
-const http = require("node:http");
 const https = require("node:https");
 const QRCode = require("qrcode");
 const { URL } = require("node:url");
@@ -55,14 +54,14 @@ function normalizeServerOrigin(value, variableName) {
   try {
     parsed = new URL(value);
   } catch {
-    throw new Error(`${variableName} must be a valid HTTP(S) origin.`);
+    throw new Error(`${variableName} must be a valid HTTPS origin.`);
   }
 
-  if (!["http:", "https:"].includes(parsed.protocol) ||
+  if (parsed.protocol !== "https:" ||
       parsed.username || parsed.password ||
       (parsed.pathname && parsed.pathname !== "/") ||
       parsed.search || parsed.hash) {
-    throw new Error(`${variableName} must be an HTTP(S) origin without a path, query, or credentials.`);
+    throw new Error(`${variableName} must be an HTTPS origin without a path, query, or credentials.`);
   }
 
   return parsed.origin;
@@ -1073,7 +1072,6 @@ module.exports = NodeHelper.create({
       throw new Error("Controller request destination did not match the trusted server origin.");
     }
 
-    const transport = url.protocol === "http:" ? http : https;
     const requestBody = body ? JSON.stringify(body) : "";
     const headers = Object.assign({}, extraHeaders || {});
     const options = authOptions || {};
@@ -1096,7 +1094,7 @@ module.exports = NodeHelper.create({
     }
 
     return new Promise((resolve, reject) => {
-      const request = transport.request(
+      const request = https.request(
         url,
         {
           method,

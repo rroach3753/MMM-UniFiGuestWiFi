@@ -136,7 +136,7 @@ Authentication behavior in API mode:
   `UNIFI_GUEST_WIFI_USERNAME` + `UNIFI_GUEST_WIFI_PASSWORD` are set, it falls
   back to controller login.
 - `UNIFI_GUEST_WIFI_URL` is required for API mode and is validated as one
-  canonical HTTP(S) origin.
+  canonical HTTPS origin.
 
 WiFi standard detection behavior:
 
@@ -545,7 +545,7 @@ export UNIFI_GUEST_WIFI_API_KEY_HEADER="X-API-Key"
 ```
 
 The trusted server URL is required in API mode and whenever server-side
-credentials are configured. It must be an HTTP(S) origin without a path,
+credentials are configured. It must be an HTTPS origin without a path,
 query, or embedded credentials. `UNIFI_URL`, `UNIFI_API_KEY`,
 `UNIFI_API_KEY_HEADER`, `UNIFI_USERNAME`, and `UNIFI_PASSWORD` are supported as
 shared fallbacks.
@@ -585,7 +585,7 @@ config: {
 ```
 
 Threat model notes:
-- Network attacker / MITM: keep `verifySSL: true` to prevent credential and session interception.
+- Network attacker / MITM: controller origins must use HTTPS; keep `verifySSL: true` to prevent credential and session interception.
 - Local shoulder-surfing: hide credentials in UI (`showPassword: false`, `includeHotspotPassword: false`) for public displays.
 - Log exposure: avoid debug logging of voucher/password values on shared systems.
 - Credential lifecycle: prefer dedicated, least-privilege UniFi accounts and rotate API keys/passwords regularly.

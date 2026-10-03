@@ -20,6 +20,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   response bodies.
 - Password fields are returned to the renderer only when their corresponding
   display option is enabled.
+- Required HTTPS for authenticated UniFi controller origins so credentials,
+  API keys, and session cookies cannot be transmitted over plaintext HTTP.
+
+### Migration
+
+- Existing API-mode installations using `http://` controller URLs must enable
+  HTTPS and update `UNIFI_GUEST_WIFI_URL`. Use `NODE_EXTRA_CA_CERTS` for a
+  private controller CA rather than reverting to plaintext HTTP.
 
 ### Changed
 
