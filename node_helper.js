@@ -79,6 +79,22 @@ function getServerControllerConfig() {
   };
 }
 
+function getServerPolicy() {
+  const authMode = normalizeString(process.env.UNIFI_GUEST_WIFI_AUTH_MODE, "config").toLowerCase();
+  if (!["config", "api", "auto"].includes(authMode)) {
+    throw new Error("UNIFI_GUEST_WIFI_AUTH_MODE must be config, api, or auto.");
+  }
+
+  return {
+    authMode,
+    site: normalizeString(process.env.UNIFI_GUEST_WIFI_SITE, "default"),
+    verifySSL: normalizeString(process.env.UNIFI_GUEST_WIFI_VERIFY_SSL, "true").toLowerCase() !== "false",
+    allowWiFiPassword: normalizeString(process.env.UNIFI_GUEST_WIFI_ALLOW_WIFI_PASSWORD, "false").toLowerCase() === "true",
+    allowVouchers: normalizeString(process.env.UNIFI_GUEST_WIFI_ALLOW_VOUCHERS, "false").toLowerCase() === "true",
+    allowHotspotPassword: normalizeString(process.env.UNIFI_GUEST_WIFI_ALLOW_HOTSPOT_PASSWORD, "false").toLowerCase() === "true"
+  };
+}
+
 function getSanitizedControllerError(error, fallback) {
   if (error && Number.isInteger(error.statusCode)) {
     return `UniFi controller request failed (HTTP ${error.statusCode}).`;
@@ -172,6 +188,9 @@ module.exports = NodeHelper.create({
   start() {
     this.refreshTimers = {};
     this.sessionCookiesByContext = {};
+    if (!getServerPolicy().verifySSL) {
+      console.warn("[MMM-UniFiGuestWiFi] WARNING: TLS certificate verification is disabled by server policy.");
+    }
     console.log("[MMM-UniFiGuestWiFi] Node helper started");
   },
 
@@ -290,10 +309,12 @@ module.exports = NodeHelper.create({
         wifiData.qrImageDataUrl = await this.generateQRImageDataUrl(wifiData.qrString);
       }
 
-      try {
-        voucherData = await this.getVoucherData(normalizedConfig);
-      } catch (error) {
-        console.warn("[MMM-UniFiGuestWiFi] Voucher fetch failed:", error.message);
+      if (normalizedConfig.includeVouchers || normalizedConfig.includeHotspotPassword) {
+        try {
+          voucherData = await this.getVoucherData(normalizedConfig);
+        } catch (error) {
+          console.warn("[MMM-UniFiGuestWiFi] Voucher fetch failed:", error.message);
+        }
       }
 
       const response = {
@@ -342,8 +363,8 @@ module.exports = NodeHelper.create({
   },
 
   normalizeConfig(config) {
-    const authMode = normalizeString(config.authMode, "config").toLowerCase();
     const serverController = getServerControllerConfig();
+    const serverPolicy = getServerPolicy();
     const hasServerCredentials = Boolean(
       serverController.username ||
       serverController.controllerPassword ||
@@ -354,12 +375,12 @@ module.exports = NodeHelper.create({
       throw new Error("UNIFI_GUEST_WIFI_URL or UNIFI_URL is required when server-side UniFi credentials are configured.");
     }
 
-    if (authMode === "api" && !serverController.controllerUrl) {
-      throw new Error("UNIFI_GUEST_WIFI_URL or UNIFI_URL is required in API mode.");
+    if (serverPolicy.authMode !== "config" && !serverController.controllerUrl) {
+      throw new Error("UNIFI_GUEST_WIFI_URL or UNIFI_URL is required in API/auto mode.");
     }
 
     return {
-      authMode,
+      authMode: serverPolicy.authMode,
       ssid: normalizeString(config.ssid, "Guest Network"),
       password: normalizeString(config.password, ""),
       securityType: normalizeString(config.securityType, "WPA").toUpperCase(),
@@ -370,8 +391,8 @@ module.exports = NodeHelper.create({
       passwordField: "",
       apiKey: serverController.apiKey,
       apiKeyHeader: serverController.apiKeyHeader,
-      site: normalizeString(config.site, "default"),
-      verifySSL: normalizeBoolean(config.verifySSL, true),
+      site: serverPolicy.site,
+      verifySSL: serverPolicy.verifySSL,
       requestTimeout: Math.max(1000, normalizeNumber(config.requestTimeout, DEFAULT_REQUEST_TIMEOUT_MS)),
       refreshInterval: normalizeClampedInteger(
         config.refreshInterval,
@@ -381,8 +402,9 @@ module.exports = NodeHelper.create({
       ),
       enhancedWiFiStandardDetection: normalizeBoolean(config.enhancedWiFiStandardDetection, true),
       maskPassword: normalizeBoolean(config.maskPassword, false),
-      showPassword: normalizeBoolean(config.showPassword, false),
-      includeHotspotPassword: normalizeBoolean(config.includeHotspotPassword, false),
+      showPassword: serverPolicy.allowWiFiPassword,
+      includeVouchers: serverPolicy.allowVouchers,
+      includeHotspotPassword: serverPolicy.allowHotspotPassword,
       instanceId: normalizeString(config.instanceId, "")
     };
   },
@@ -1162,6 +1184,16 @@ module.exports = NodeHelper.create({
 
   async getVoucherData(config) {
     try {
+      if (!config.includeVouchers) {
+        return {
+          voucherCode: null,
+          voucherStatus: null,
+          hotspotPassword: config.includeHotspotPassword
+            ? await this.fetchHotspotPassword(config)
+            : null
+        };
+      }
+
       const site = encodeURIComponent(config.site);
       const endpoints = [
         `/proxy/network/integration/v1/sites/${site}/hotspot/vouchers`,

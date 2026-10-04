@@ -73,7 +73,6 @@ Add this module block to your MagicMirror `config/config.js` file to get started
   module: "MMM-UniFiGuestWiFi",
   position: "top_right",
   config: {
-    authMode: "config",
     ssid: "Guest Network",
     password: "guestpass123",
     securityType: "WPA2"
@@ -103,11 +102,11 @@ hides the portal password fallback.
 
 ### Data Source Options
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `authMode` | string | `"config"` | Data source mode: `"config"` (hardcoded), `"api"` (fetch from UniFi using API key or controller login), or `"auto"` (try API, fallback to config) |
+Data-source and controller security policy is configured only in the
+MagicMirror server environment. Renderer `config.js` values for `authMode`,
+`site`, or `verifySSL` are ignored.
 
-### Config Mode Options (authMode: "config")
+### Config Mode Options (`UNIFI_GUEST_WIFI_AUTH_MODE=config`)
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
@@ -116,20 +115,19 @@ hides the portal password fallback.
 | `securityType` | string | `"WPA"` | Security type: `"OPEN"`, `"OWE"`, `"OWE_TRANSITION"`, `"WPA"`, `"WPA2"`, or `"WPA3"` |
 | `isHidden` | boolean | `false` | Whether the SSID is hidden |
 
-### API Mode Options (authMode: "api")
+### API/Auto Renderer Options
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `site` | string | `"default"` | UniFi site name |
-| `verifySSL` | boolean | `true` | Verify SSL certificates (recommended) |
 | `requestTimeout` | number | `10000` | HTTP request timeout in milliseconds |
 | `refreshInterval` | number | `300000` | Data refresh interval in milliseconds; finite integers are clamped to 60000–86400000 (1 minute–24 hours) |
 | `enhancedWiFiStandardDetection` | boolean | `true` | Use AP capability data (`stat/device`) to improve WiFi generation badging |
 
 Authentication behavior in API mode:
 
-- Controller URL and authentication are server-only environment settings; values
-  in `config.js` are ignored and are never sent over the module socket.
+- Data-source mode, site, TLS verification, controller URL, authentication,
+  and sensitive disclosure permissions are server-only environment settings.
+  Renderer values are ignored and are never authorization.
 - If `UNIFI_GUEST_WIFI_API_KEY` is set, the helper tries API key authentication
   first.
 - If the API key does not return usable data and
@@ -152,7 +150,7 @@ WiFi standard detection behavior:
 | `title` | string | `"Guest WiFi"` | Module title |
 | `layoutVertical` | boolean | `true` | Display layout: `true` for vertical, `false` for horizontal |
 | `showSSID` | boolean | `true` | Show SSID/network name |
-| `showPassword` | boolean | `false` | Show password (if applicable) |
+| `showPassword` | boolean | `false` | Show a returned WiFi password; also requires `UNIFI_GUEST_WIFI_ALLOW_WIFI_PASSWORD=true` |
 | `showSecurityType` | boolean | `true` | Show security type badge |
 | `showWiFiStandard` | boolean | `true` | Show WiFi generation badge |
 | `showVoucher` | boolean | `true` | Show voucher code section |
@@ -163,7 +161,7 @@ WiFi standard detection behavior:
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `voucherLabel` | string | `"Guest Code"` | Label for voucher code display |
-| `includeHotspotPassword` | boolean | `false` | Show hotspot portal password when no vouchers available |
+| `includeHotspotPassword` | boolean | `false` | Show a returned hotspot password; also requires `UNIFI_GUEST_WIFI_ALLOW_HOTSPOT_PASSWORD=true` |
 
 ### QR Code Options
 
@@ -191,7 +189,6 @@ WiFi standard detection behavior:
   module: "MMM-UniFiGuestWiFi",
   position: "top_right",
   config: {
-    authMode: "config",
     ssid: "Company Guest Network",
     password: "SecureGuestPass123!",
     securityType: "WPA3",
@@ -211,7 +208,6 @@ WiFi standard detection behavior:
   module: "MMM-UniFiGuestWiFi",
   position: "top_right",
   config: {
-    authMode: "config",
     ssid: "Public Hotspot",
     password: "", // Empty for open networks
     securityType: "OPEN",
@@ -230,7 +226,6 @@ WiFi standard detection behavior:
   module: "MMM-UniFiGuestWiFi",
   position: "top_right",
   config: {
-    authMode: "config",
     ssid: "Hidden Enterprise",
     password: "EncryptedWithoutPassword",
     securityType: "OWE",
@@ -251,6 +246,10 @@ MagicMirror, then use this renderer configuration:
 export UNIFI_GUEST_WIFI_URL="https://unifi.local"
 export UNIFI_GUEST_WIFI_USERNAME="admin"
 export UNIFI_GUEST_WIFI_PASSWORD="your_unifi_password"
+export UNIFI_GUEST_WIFI_AUTH_MODE="api"
+export UNIFI_GUEST_WIFI_SITE="default"
+export UNIFI_GUEST_WIFI_ALLOW_VOUCHERS="true"
+export UNIFI_GUEST_WIFI_ALLOW_HOTSPOT_PASSWORD="true"
 ```
 
 ```js
@@ -258,9 +257,6 @@ export UNIFI_GUEST_WIFI_PASSWORD="your_unifi_password"
   module: "MMM-UniFiGuestWiFi",
   position: "top_right",
   config: {
-    authMode: "api",
-    site: "default",
-    verifySSL: true,
     refreshInterval: 300000,
     title: "Guest WiFi",
     showVoucher: true,
@@ -272,17 +268,17 @@ export UNIFI_GUEST_WIFI_PASSWORD="your_unifi_password"
 
 ### Example 5: Auto Mode with Fallback
 
+Set `UNIFI_GUEST_WIFI_AUTH_MODE=auto` along with the controller environment
+settings from Example 4.
+
 ```js
 {
   module: "MMM-UniFiGuestWiFi",
   position: "top_right",
   config: {
-    authMode: "auto", // Try API, fall back to config on failure
     ssid: "Fallback Guest Network",
     password: "fallback_wifi_password",
     securityType: "WPA2",
-    site: "default",
-    verifySSL: true,
     refreshInterval: 300000,
   },
 },
@@ -293,6 +289,7 @@ export UNIFI_GUEST_WIFI_PASSWORD="your_unifi_password"
 ```bash
 export UNIFI_GUEST_WIFI_URL="https://unifi.local"
 export UNIFI_GUEST_WIFI_API_KEY="YOUR_UNIFI_API_KEY"
+export UNIFI_GUEST_WIFI_AUTH_MODE="api"
 ```
 
 ```js
@@ -300,9 +297,6 @@ export UNIFI_GUEST_WIFI_API_KEY="YOUR_UNIFI_API_KEY"
   module: "MMM-UniFiGuestWiFi",
   position: "top_right",
   config: {
-    authMode: "api",
-    site: "default",
-    verifySSL: true,
     refreshInterval: 300000,
   },
 },
@@ -317,9 +311,6 @@ Use the environment variables shown in Example 4.
   module: "MMM-UniFiGuestWiFi",
   position: "top_right",
   config: {
-    authMode: "api",
-    site: "default",
-    verifySSL: true,
     refreshInterval: 300000,
   },
 },
@@ -332,6 +323,7 @@ export UNIFI_GUEST_WIFI_URL="https://unifi.local"
 export UNIFI_GUEST_WIFI_API_KEY="YOUR_UNIFI_API_KEY"
 export UNIFI_GUEST_WIFI_USERNAME="admin"
 export UNIFI_GUEST_WIFI_PASSWORD="your_unifi_password"
+export UNIFI_GUEST_WIFI_AUTH_MODE="auto"
 ```
 
 ```js
@@ -339,9 +331,6 @@ export UNIFI_GUEST_WIFI_PASSWORD="your_unifi_password"
   module: "MMM-UniFiGuestWiFi",
   position: "top_right",
   config: {
-    authMode: "auto",
-    site: "default",
-    verifySSL: true,
     refreshInterval: 300000,
   },
 },
@@ -395,6 +384,10 @@ Voucher data is fetched directly from the UniFi API in API/auto modes. If no act
 - The message "No active vouchers available"
 - The hotspot portal password (if `includeHotspotPassword: true`)
 
+Voucher retrieval requires `UNIFI_GUEST_WIFI_ALLOW_VOUCHERS=true`. Hotspot
+password retrieval requires `UNIFI_GUEST_WIFI_ALLOW_HOTSPOT_PASSWORD=true`.
+Both permissions default to false because helper responses are broadcast.
+
 ## Updating
 
 ### Standard Update (Git)
@@ -415,7 +408,9 @@ mmpm update MMM-UniFiGuestWiFi
 
 ## UniFi API Calls Used
 
-When `authMode` is set to `api` or `auto`, the module detects Hotspot/Guest WiFi networks by trying these endpoints in order (stopping at the first one that returns usable WLAN records):
+When `UNIFI_GUEST_WIFI_AUTH_MODE` is `api` or `auto`, the module detects
+Hotspot/Guest WiFi networks by trying these endpoints in order (stopping at
+the first one that returns usable WLAN records):
 
 1. `/proxy/network/api/s/{site}/rest/wlanconf`
 2. `/api/s/{site}/rest/wlanconf`
@@ -456,13 +451,14 @@ Authentication uses session cookies from `POST /api/auth/login` for controller-l
 - Verify controller URL is accessible and uses HTTPS
 - Check username and password are correct
 - Verify user has Network app permissions
-- Check SSL certificate verification setting (`verifySSL`)
+- Keep `UNIFI_GUEST_WIFI_VERIFY_SSL=true` and configure a trusted certificate
 - Look for errors in MagicMirror logs
 
-**Auto Mode (`authMode: "auto"`):**
+**Auto Mode (`UNIFI_GUEST_WIFI_AUTH_MODE=auto`):**
 - API fetch is attempted first.
 - If API fetch fails, auto mode falls back to config-mode values.
-- If you do not want fallback behavior, use `authMode: "api"`.
+- If you do not want fallback behavior, set
+  `UNIFI_GUEST_WIFI_AUTH_MODE=api`.
 - If you do want fallback behavior, set explicit fallback values for `ssid` and `password` instead of leaving module defaults.
 
 ### Special Characters Not Working in QR
@@ -475,6 +471,7 @@ Authentication uses session cookies from `POST /api/auth/login` for controller-l
 
 - Verify active vouchers exist in the hotspot portal
 - In API mode, verify user has permission to read vouchers
+- Set `UNIFI_GUEST_WIFI_ALLOW_VOUCHERS=true` on the server
 - Check `showVoucher: true` setting
 
 ### Password Masking Not Working
@@ -485,21 +482,15 @@ Authentication uses session cookies from `POST /api/auth/login` for controller-l
 
 ## SSL Certificate Issues
 
-If using a self-signed certificate on your UniFi controller:
-
-```js
-config: {
-  verifySSL: false, // Disable SSL verification only when you cannot use trusted certs
-  requestTimeout: 10000
-}
-```
-
-For production environments, keep `verifySSL: true` and use a valid SSL certificate.
+For production environments, keep `UNIFI_GUEST_WIFI_VERIFY_SSL=true` and use a
+valid certificate or `NODE_EXTRA_CA_CERTS`. If verification absolutely must be
+disabled, set `UNIFI_GUEST_WIFI_VERIFY_SSL=false` in the MagicMirror process
+environment. Renderer `verifySSL` values are ignored.
 
 ### Node.js Certificate Chain Issues
 
 If your UniFi controller has a **valid certificate but from a CA that Node.js
-doesn't recognize**, you may see failures with `verifySSL: true` even though
+doesn't recognize**, you may see failures with TLS verification enabled even though
 the certificate is valid (curl works fine). This is because Node.js has stricter
 certificate chain validation than curl.
 
@@ -520,7 +511,7 @@ export NODE_EXTRA_CA_CERTS=~/.config/controller-ca.pem
 npm start
 ```
 
-1. Keep `verifySSL: true` in your config — it will now work with proper
+1. Keep `UNIFI_GUEST_WIFI_VERIFY_SSL=true` — it will now work with proper
    verification enabled.
 
 Alternatively, add this to your shell profile (`.bashrc`, `.zshrc`, etc.) for
@@ -540,6 +531,13 @@ export UNIFI_GUEST_WIFI_API_KEY="your_api_key"
 export UNIFI_GUEST_WIFI_USERNAME="your_username"
 export UNIFI_GUEST_WIFI_PASSWORD="your_password"
 export UNIFI_GUEST_WIFI_URL="https://unifi.local"
+export UNIFI_GUEST_WIFI_AUTH_MODE="api" # config, api, or auto
+export UNIFI_GUEST_WIFI_SITE="default"
+export UNIFI_GUEST_WIFI_VERIFY_SSL="true"
+# Explicit opt-ins; all default to false:
+export UNIFI_GUEST_WIFI_ALLOW_WIFI_PASSWORD="false"
+export UNIFI_GUEST_WIFI_ALLOW_VOUCHERS="false"
+export UNIFI_GUEST_WIFI_ALLOW_HOTSPOT_PASSWORD="false"
 # Optional when the controller uses a non-default API key header:
 export UNIFI_GUEST_WIFI_API_KEY_HEADER="X-API-Key"
 ```
@@ -550,33 +548,35 @@ query, or embedded credentials. `UNIFI_URL`, `UNIFI_API_KEY`,
 `UNIFI_API_KEY_HEADER`, `UNIFI_USERNAME`, and `UNIFI_PASSWORD` are supported as
 shared fallbacks.
 
-### Migration from controller settings in config.js
+### Migration from renderer policy in config.js
 
 Controller settings in `config.js` are no longer accepted. This prevents a
 renderer or socket client from selecting an arbitrary request destination and
 keeps controller credentials out of browser memory and socket payloads.
 
-1. Move `controllerUrl` to `UNIFI_GUEST_WIFI_URL`.
-2. Move `apiKey` to `UNIFI_GUEST_WIFI_API_KEY`, or move `username` and
+1. Move `authMode` to `UNIFI_GUEST_WIFI_AUTH_MODE` and `site` to
+   `UNIFI_GUEST_WIFI_SITE`.
+2. Move `controllerUrl` to `UNIFI_GUEST_WIFI_URL`.
+3. Move `apiKey` to `UNIFI_GUEST_WIFI_API_KEY`, or move `username` and
    `controllerPassword`/`passwordField` to `UNIFI_GUEST_WIFI_USERNAME` and
    `UNIFI_GUEST_WIFI_PASSWORD`.
-3. If needed, move `apiKeyHeader` to
+4. If needed, move `apiKeyHeader` to
    `UNIFI_GUEST_WIFI_API_KEY_HEADER`.
-4. Remove those six controller fields from the module block and restart the
+5. Remove controller and policy fields from the module block and restart the
    entire MagicMirror process so the helper receives the environment.
+6. Explicitly opt in to each sensitive value that may be broadcast with the
+   matching `UNIFI_GUEST_WIFI_ALLOW_*` variable. Keep all three false unless
+   every client connected to the MagicMirror socket may receive those values.
 
 The config-mode `password` remains a WiFi credential, not a controller
 credential. It is still sent to the helper in `config`/`auto` mode so backend
-QR generation continues to work, but the helper returns WiFi or hotspot
-password fields to the renderer only when `showPassword` or
-`includeHotspotPassword` explicitly requests display.
+QR generation continues to work, but the helper never returns it unless the
+server explicitly enables WiFi password disclosure.
 
 Recommended production settings:
 
 ```js
 config: {
-  authMode: "auto", // or "api" / "config" based on your environment
-  verifySSL: true,
   requestTimeout: 10000,
   showPassword: false,
   includeHotspotPassword: false,
@@ -585,7 +585,12 @@ config: {
 ```
 
 Threat model notes:
-- Network attacker / MITM: controller origins must use HTTPS; keep `verifySSL: true` to prevent credential and session interception.
+- Socket clients are untrusted: MagicMirror's helper API does not securely
+  identify a notification sender, and responses are broadcast. `instanceId`
+  is routing metadata only, not authorization.
+- Network attacker / MITM: controller origins must use HTTPS; keep
+  `UNIFI_GUEST_WIFI_VERIFY_SSL=true` to prevent credential and session
+  interception.
 - Local shoulder-surfing: hide credentials in UI (`showPassword: false`, `includeHotspotPassword: false`) for public displays.
 - Log exposure: avoid debug logging of voucher/password values on shared systems.
 - Credential lifecycle: prefer dedicated, least-privilege UniFi accounts and rotate API keys/passwords regularly.

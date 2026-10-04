@@ -4,7 +4,7 @@ All notable changes to this project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## [Unreleased]
+## [2.0.0] - 2026-10-04
 
 ### Security
 
@@ -22,12 +22,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   display option is enabled.
 - Required HTTPS for authenticated UniFi controller origins so credentials,
   API keys, and session cookies cannot be transmitted over plaintext HTTP.
+- Moved data-source mode, site selection, TLS verification, and all sensitive
+  disclosure permissions to server-only environment policy. Renderer socket
+  payloads can no longer enable WiFi passwords, vouchers, hotspot passwords,
+  alternate sites, authentication modes, or disabled TLS verification.
 
 ### Migration
 
 - Existing API-mode installations using `http://` controller URLs must enable
   HTTPS and update `UNIFI_GUEST_WIFI_URL`. Use `NODE_EXTRA_CA_CERTS` for a
   private controller CA rather than reverting to plaintext HTTP.
+- API/auto installations must set `UNIFI_GUEST_WIFI_AUTH_MODE`; sensitive
+  values now require explicit `UNIFI_GUEST_WIFI_ALLOW_*` server opt-ins.
 
 ### Changed
 

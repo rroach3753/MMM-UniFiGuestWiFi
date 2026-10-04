@@ -23,16 +23,20 @@ function createModule(config) {
   };
 }
 
-test("API backend payload omits controller URL and authentication fields", () => {
+test("backend payload omits all server policy and controller authentication fields", () => {
   const moduleInstance = createModule({
     authMode: "api",
+    site: "attacker-site",
+    verifySSL: false,
     controllerUrl: "https://attacker.example",
     username: "renderer-user",
     controllerPassword: "renderer-password",
     passwordField: "legacy-password",
     apiKey: "renderer-key",
     apiKeyHeader: "X-Custom-Key",
-    password: "wifi-password"
+    password: "wifi-password",
+    showPassword: true,
+    includeHotspotPassword: true
   });
 
   const payload = moduleInstance.getBackendConfig();
@@ -44,13 +48,17 @@ test("API backend payload omits controller URL and authentication fields", () =>
     "passwordField",
     "apiKey",
     "apiKeyHeader",
-    "password"
+    "authMode",
+    "site",
+    "verifySSL",
+    "showPassword",
+    "includeHotspotPassword"
   ].forEach((field) => assert.equal(Object.hasOwn(payload, field), false));
   assert.equal(payload.instanceId, "module_1");
-  assert.equal(payload.authMode, "api");
+  assert.equal(payload.password, "wifi-password");
 });
 
-test("config mode retains WiFi password for backend QR generation", () => {
+test("WiFi password remains available for config-mode fallback processing", () => {
   const moduleInstance = createModule({
     authMode: "config",
     password: "wifi-password",

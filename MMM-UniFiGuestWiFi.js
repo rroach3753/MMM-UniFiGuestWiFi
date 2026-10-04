@@ -2,13 +2,10 @@
 
 Module.register("MMM-UniFiGuestWiFi", {
   defaults: {
-    authMode: "config",
     ssid: "Guest Network",
     password: "guestpass123",
     securityType: "WPA",
     isHidden: false,
-    site: "default",
-    verifySSL: true,
     requestTimeout: 10000,
     refreshInterval: 300000,
     title: "Guest WiFi",
@@ -78,23 +75,15 @@ Module.register("MMM-UniFiGuestWiFi", {
 
   getBackendConfig: function () {
     var backendConfig = {
-      authMode: this.config.authMode,
       ssid: this.config.ssid,
+      password: this.config.password,
       securityType: this.config.securityType,
       isHidden: this.config.isHidden,
-      site: this.config.site,
-      verifySSL: this.config.verifySSL,
       requestTimeout: this.config.requestTimeout,
       refreshInterval: this.config.refreshInterval,
       enhancedWiFiStandardDetection: this.config.enhancedWiFiStandardDetection,
-      showPassword: this.config.showPassword,
-      includeHotspotPassword: this.config.includeHotspotPassword,
       instanceId: this.instanceId
     };
-
-    if (this.config.authMode === "config" || this.config.authMode === "auto") {
-      backendConfig.password = this.config.password;
-    }
 
     return backendConfig;
   },
