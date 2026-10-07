@@ -838,11 +838,14 @@ module.exports = NodeHelper.create({
     }
 
     if (matching.length > 0) {
-      return matching.map((entry) => entry.raw);
-    }
-
-    if (normalized.length > 0) {
-      return normalized.map((entry) => entry.raw);
+      return matching
+        .map((entry, index) => ({
+          ...entry,
+          index,
+          guestScore: this.getGuestNetworkScore(entry.raw)
+        }))
+        .sort((left, right) => right.guestScore - left.guestScore || left.index - right.index)
+        .map((entry) => entry.raw);
     }
 
     return [];
@@ -1027,10 +1030,19 @@ module.exports = NodeHelper.create({
   },
 
   isHotspotOrGuestNetwork(record) {
+    return this.getGuestNetworkScore(record) > 0;
+  },
+
+  getGuestNetworkScore(record) {
+    if (!record || typeof record !== "object") {
+      return 0;
+    }
+
     const ssid = normalizeString(record.name || record.ssid || "", "").toLowerCase();
+    let score = 0;
 
     if (ssid.includes("guest") || ssid.includes("hotspot")) {
-      return true;
+      score += 30;
     }
 
     const haystack = [
@@ -1038,20 +1050,34 @@ module.exports = NodeHelper.create({
       record.network_type,
       record.purpose,
       record.wlan_bands,
-      record.security,
-      record.guest_policy,
-      record.x_passphrase ? "has_portal_passphrase" : "",
-      record.is_guest,
-      record.hotspot_enabled
+      record.security
     ]
       .map((value) => String(value == null ? "" : value).toLowerCase())
       .join(" ");
 
-    if (haystack.includes("hotspot") || haystack.includes("guest")) {
-      return true;
+    if (haystack.includes("hotspot")) {
+      score += 100;
+    } else if (haystack.includes("guest")) {
+      score += 40;
     }
 
-    return Boolean(record.guest_policy || record.hotspot_enabled || record.portal_enabled);
+    if (normalizeBoolean(record.hotspot_enabled, false)) {
+      score += 100;
+    }
+
+    if (normalizeBoolean(record.portal_enabled, false) || normalizeString(record.x_passphrase, "")) {
+      score += 80;
+    }
+
+    if (normalizeBoolean(record.is_guest, false)) {
+      score += 50;
+    }
+
+    if (normalizeBoolean(record.guest_policy, false)) {
+      score += 20;
+    }
+
+    return score;
   },
 
   shouldRetryAfterAuthFailure(config, authOptions) {

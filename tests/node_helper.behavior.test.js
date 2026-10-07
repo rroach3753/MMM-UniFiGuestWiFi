@@ -295,6 +295,65 @@ test("hidden network QR payloads include the hidden flag", () => {
       );
 });
 
+test("automatic discovery prefers a portal WLAN over an IoT guest-policy WLAN", async () => {
+  const originalFetch = helper.fetchFirstSuccessfulNetworkRecords;
+  helper.fetchFirstSuccessfulNetworkRecords = async () => [
+    { name: "RMR IoT WiFi", guest_policy: true },
+    { name: "Crowley's Crossroad Connection", portal_enabled: true }
+  ];
+
+  try {
+    const networks = await helper.fetchHotspotOrGuestNetworks({
+      site: "default",
+      ssid: "Guest Network"
+    });
+
+    assert.deepEqual(
+      networks.map((network) => network.name),
+      ["Crowley's Crossroad Connection", "RMR IoT WiFi"]
+    );
+  } finally {
+    helper.fetchFirstSuccessfulNetworkRecords = originalFetch;
+  }
+});
+
+test("configured SSID remains the exact API network selector", async () => {
+  const originalFetch = helper.fetchFirstSuccessfulNetworkRecords;
+  helper.fetchFirstSuccessfulNetworkRecords = async () => [
+    { name: "RMR IoT WiFi", guest_policy: true },
+    { name: "Crowley's Crossroad Connection", portal_enabled: true }
+  ];
+
+  try {
+    const networks = await helper.fetchHotspotOrGuestNetworks({
+      site: "default",
+      ssid: "Crowley's Crossroad Connection"
+    });
+
+    assert.deepEqual(networks.map((network) => network.name), ["Crowley's Crossroad Connection"]);
+  } finally {
+    helper.fetchFirstSuccessfulNetworkRecords = originalFetch;
+  }
+});
+
+test("API network selection does not fall back to an unrelated WLAN", async () => {
+  const originalFetch = helper.fetchFirstSuccessfulNetworkRecords;
+  helper.fetchFirstSuccessfulNetworkRecords = async () => [
+    { name: "RMR IoT WiFi", purpose: "corporate" }
+  ];
+
+  try {
+    const networks = await helper.fetchHotspotOrGuestNetworks({
+      site: "default",
+      ssid: "Guest Network"
+    });
+
+    assert.deepEqual(networks, []);
+  } finally {
+    helper.fetchFirstSuccessfulNetworkRecords = originalFetch;
+  }
+});
+
 test("renderer flags cannot enable password, hotspot, or voucher disclosures", async () => {
       const originalGetVoucherData = helper.getVoucherData;
       const originalGenerateQRImageDataUrl = helper.generateQRImageDataUrl;

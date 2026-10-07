@@ -9,6 +9,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Changed
 
 - Updated ESLint to 10.12.0 and `micromark-factory-space` to 2.1.0
+- Restore automatic guest SSID discovery by preferring portal/hotspot WLANs
+  over networks that only use UniFi guest policy, and never fall back to an
+  unrelated WLAN.
 
 ## [2.0.0] - 2026-10-04
 

@@ -266,6 +266,12 @@ export UNIFI_GUEST_WIFI_ALLOW_HOTSPOT_PASSWORD="true"
 },
 ```
 
+API mode discovers the SSID from UniFi automatically. Portal/hotspot WLANs are
+preferred over WLANs that only use UniFi's guest policy, so isolated IoT
+networks do not take precedence over a captive-portal guest network. The
+module reports an error rather than displaying an unrelated WLAN when no guest
+or hotspot WLAN can be identified.
+
 ### Example 5: Auto Mode with Fallback
 
 Set `UNIFI_GUEST_WIFI_AUTH_MODE=auto` along with the controller environment
