@@ -1,7 +1,7 @@
 {
   "type": "commonjs",
   "name": "mmm-unifiguestwifi",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "MagicMirror module for displaying UniFi guest WiFi network details and connection information",
   "author": "Rickey Roach",
   "main": "MMM-UniFiGuestWiFi.js",
@@ -28,7 +28,9 @@
     "qrcode": "^1.5.4"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "eslint": "^10.12.0",
+    "globals": "^17.13.0",
     "markdownlint-cli2": "^0.23.3"
   },
   "overrides": {

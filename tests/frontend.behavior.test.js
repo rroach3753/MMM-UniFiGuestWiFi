@@ -1,5 +1,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
 
 let moduleDefinition;
 global.Module = {
@@ -72,6 +74,19 @@ test("WiFi password remains available for config-mode fallback processing", () =
   assert.equal(Object.hasOwn(payload, "controllerPassword"), false);
 });
 
+test("QR color options reach the backend without exposing server policy", () => {
+  const moduleInstance = createModule({ colorDark: "#123456", colorLight: "#abcdef" });
+  assert.equal(moduleInstance.getBackendConfig().colorDark, "#123456");
+  assert.equal(moduleInstance.getBackendConfig().colorLight, "#abcdef");
+});
+
+test("styles stay scoped to the guest WiFi module", () => {
+  const css = fs.readFileSync(path.join(__dirname, "..", "MMM-UniFiGuestWiFi.css"), "utf8");
+  for (const match of css.matchAll(/(?:^|[{},])\s*(\.[\w-][^{},]*)\s*(?=[{,])/g)) {
+    assert.ok(match[1].startsWith(".mmm-unifi-guestwifi"), match[1]);
+  }
+});
+
 test("renders the active voucher or the guest portal password fallback", () => {
   const originalDocument = global.document;
   global.document = {
@@ -101,6 +116,13 @@ test("renders the active voucher or the guest portal password fallback", () => {
     });
     assert.match(text(moduleInstance.createQRCodeSection()), /Portal Password: guest-portal-password/);
     assert.doesNotMatch(text(moduleInstance.createVoucherSection()), /guest-voucher/);
+    moduleInstance.socketNotificationReceived("UNIFI_GUESTWIFI_DATA", {
+      instanceId: "module_1", ssid: "Working WiFi", warning: "Unable to retrieve vouchers.",
+      voucherStatus: "unavailable"
+    });
+    assert.match(text(moduleInstance.getDom()), /Unable to retrieve vouchers/);
+    assert.match(text(moduleInstance.getDom()), /Working WiFi/);
+    moduleInstance.stop();
   } finally {
     if (originalDocument === undefined) delete global.document;
     else global.document = originalDocument;

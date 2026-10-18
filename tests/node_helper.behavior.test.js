@@ -20,6 +20,75 @@ Module._load = function (request, parent, isMain) {
 const helper = require("../node_helper");
 Module._load = originalLoad;
 
+test("server QR generation honors validated colors and retains default output", async () => {
+  const QRCode = require("qrcode");
+  const originalGenerate = QRCode.toDataURL;
+  let options;
+  QRCode.toDataURL = async (_text, suppliedOptions) => { options = suppliedOptions; return "data:image/png;base64,test"; };
+  try {
+    const config = helper.normalizeConfig({ colorDark: "#123456", colorLight: "#abcdef" });
+    await helper.generateQRImageDataUrl("WIFI:S:Guest;;", config);
+    assert.deepEqual(options.color, { dark: "#123456", light: "#abcdef" });
+    await helper.generateQRImageDataUrl("WIFI:S:Guest;;");
+    assert.deepEqual(options.color, { dark: "#000000", light: "#ffffff" });
+    for (const value of ["red", "#12", {}, "#000000;bad"]) {
+      assert.throws(() => helper.normalizeConfig({ colorDark: value }), /hexadecimal/);
+    }
+  } finally {
+    QRCode.toDataURL = originalGenerate;
+  }
+});
+
+test("successful empty API-key results do not trigger login", async () => {
+  const originalLogin = helper.login;
+  let logins = 0;
+  helper.login = async () => { logins++; };
+  try {
+    for (const authMode of ["apikey", "auto"]) {
+      const records = await helper.fetchRecordsWithAuth({
+        authMode, apiKey: "server-key", username: "user", controllerPassword: "password"
+      }, { fetcher: async () => [] });
+      assert.deepEqual(records, []);
+    }
+    assert.equal(logins, 0);
+    await assert.rejects(helper.fetchRecordsWithAuth({
+      authMode: "auto", apiKey: "server-key"
+    }, { returnEmptyIfApiKeyOnly: true, fetcher: async () => { throw new Error("offline"); } }), /offline/);
+  } finally {
+    helper.login = originalLogin;
+  }
+});
+
+test("empty endpoint success takes precedence over unsupported endpoints", async () => {
+  const originalRequest = helper.requestJson;
+  helper.requestJson = async (_method, _config, endpoint) => {
+    if (endpoint === "/supported") return { data: [] };
+    throw new Error("unsupported endpoint");
+  };
+  try {
+    for (const endpoints of [["/unsupported", "/supported"], ["/supported", "/unsupported"]]) {
+      assert.deepEqual(await helper.fetchNetworkEndpoints({}, endpoints, {}, false), []);
+      assert.deepEqual(await helper.fetchRecordsFromAnyEndpoint({}, endpoints, {}), []);
+    }
+    await assert.rejects(helper.fetchRecordsFromAnyEndpoint({}, ["/unsupported"], {}), /unsupported/);
+  } finally {
+    helper.requestJson = originalRequest;
+  }
+});
+
+test("optional voucher failures remain visible without blocking WiFi data", async () => {
+  const originalFetch = helper.fetchVoucherEndpoints;
+  helper.fetchVoucherEndpoints = async () => { throw new Error("private controller details"); };
+  try {
+    const result = await helper.getVoucherData({ includeVouchers: true, site: "default" });
+    assert.equal(result.voucherStatus, "unavailable");
+    assert.match(result.warning, /Unable to retrieve/);
+    assert.doesNotMatch(result.warning, /private controller details/);
+  } finally {
+    helper.fetchVoucherEndpoints = originalFetch;
+  }
+});
+
 test("malformed socket configurations produce sanitized errors instead of rejected promises", async () => {
   const originalSend = helper.sendSocketNotification;
   const sent = [];

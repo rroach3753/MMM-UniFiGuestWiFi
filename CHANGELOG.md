@@ -6,12 +6,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [2.0.1] - 2026-10-18
+
 ### Changed
 
+- Treat successful empty controller responses as success rather than triggering
+  login; preserve errors when every endpoint fails.
+- Show optional voucher/portal-password failures as non-blocking warnings while
+  retaining usable WiFi details.
+- Honor validated QR color options in server-generated images and scope CSS to
+  this module. Retain legacy QR assets and methods for compatibility.
+- Enable recommended environment-aware ESLint checks and lint/test CI on
+  Node.js 20, 22, and 24; add regression tests and frontend timer cleanup.
+- Correct documentation: captive-portal QR payloads do not contain passwords.
 - Updated ESLint to 10.12.0 and `micromark-factory-space` to 2.1.0
 - Restore automatic guest SSID discovery by preferring portal/hotspot WLANs
   over networks that only use UniFi guest policy, and never fall back to an
   unrelated WLAN.
+
+### Security
+
+- Validate socket configuration, bound retained instances, and prevent
+  duplicate or overlapping polling requests.
+- Restrict portal-password fallback to explicitly guest/portal-scoped settings.
 
 ## [2.0.0] - 2026-10-04
 

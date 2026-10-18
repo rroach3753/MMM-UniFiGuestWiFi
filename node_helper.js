@@ -50,6 +50,14 @@ function normalizeString(value, fallback) {
   return text || fallback;
 }
 
+function normalizeQRColor(value, fallback) {
+  if (value == null) return fallback;
+  if (typeof value !== "string" || !/^#(?:[0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(value)) {
+    throw new Error("QR colors must be hexadecimal color strings.");
+  }
+  return value;
+}
+
 function normalizeServerOrigin(value, variableName) {
   let parsed;
 
@@ -224,33 +232,25 @@ module.exports = NodeHelper.create({
     const requestOptions = options || {};
     const endpoints = requestOptions.endpoints || [];
     const fetcher = requestOptions.fetcher;
-    const returnEmptyIfApiKeyOnly = Boolean(requestOptions.returnEmptyIfApiKeyOnly);
-
     const auth = getRequestAuthContext(config, "auto");
     validateRequestAuth(auth);
 
     if (auth.apiKey && (auth.authMode === "auto" || auth.authMode === "apikey")) {
       try {
-        const apiRecords = await fetcher({
+        return await fetcher({
           apiKey: auth.apiKey,
           apiKeyHeader: auth.apiKeyHeader
         }, endpoints);
-
-        if (apiRecords.length > 0) {
-          return apiRecords;
-        }
       } catch (error) {
-        if (auth.authMode === "apikey") {
+        if (auth.authMode === "apikey" || !auth.username || !auth.password) {
           throw error;
         }
+        console.warn("[MMM-UniFiGuestWiFi] API-key request failed; trying server-side login:",
+          getSanitizedControllerError(error, "Controller request failed."));
       }
     }
 
     if (!auth.username || !auth.password) {
-      if (returnEmptyIfApiKeyOnly && auth.apiKey) {
-        return [];
-      }
-
       throw new Error("Missing username or password in MMM-UniFiGuestWiFi config.");
     }
 
@@ -336,14 +336,16 @@ module.exports = NodeHelper.create({
       }
 
       if (wifiData.qrString) {
-        wifiData.qrImageDataUrl = await this.generateQRImageDataUrl(wifiData.qrString);
+        wifiData.qrImageDataUrl = await this.generateQRImageDataUrl(wifiData.qrString, normalizedConfig);
       }
 
       if (normalizedConfig.includeVouchers || normalizedConfig.includeHotspotPassword) {
         try {
           voucherData = await this.getVoucherData(normalizedConfig);
         } catch (error) {
-          console.warn("[MMM-UniFiGuestWiFi] Voucher fetch failed:", error.message);
+          voucherData.warning = getSanitizedControllerError(error, "Unable to retrieve vouchers or portal password.");
+          voucherData.voucherStatus = "unavailable";
+          console.warn("[MMM-UniFiGuestWiFi] Voucher fetch failed:", voucherData.warning);
         }
       }
 
@@ -445,7 +447,8 @@ module.exports = NodeHelper.create({
         MAX_REFRESH_INTERVAL_MS
       ),
       enhancedWiFiStandardDetection: normalizeBoolean(config.enhancedWiFiStandardDetection, true),
-      maskPassword: normalizeBoolean(config.maskPassword, false),
+      colorDark: normalizeQRColor(config.colorDark, "#000000"),
+      colorLight: normalizeQRColor(config.colorLight, "#ffffff"),
       showPassword: serverPolicy.allowWiFiPassword,
       includeVouchers: serverPolicy.allowVouchers,
       includeHotspotPassword: serverPolicy.allowHotspotPassword,
@@ -489,14 +492,14 @@ module.exports = NodeHelper.create({
     return `WIFI:S:${escaped};T:${qrSecurityType};${hiddenField};`;
   },
 
-  async generateQRImageDataUrl(qrText) {
+  async generateQRImageDataUrl(qrText, config = {}) {
     return QRCode.toDataURL(qrText, {
       errorCorrectionLevel: "L",
       margin: 1,
       scale: 8,
       color: {
-        dark: "#000000",
-        light: "#FFFFFF"
+        dark: config.colorDark || "#000000",
+        light: config.colorLight || "#ffffff"
       }
     });
   },
@@ -878,40 +881,47 @@ module.exports = NodeHelper.create({
   async fetchFirstSuccessfulNetworkRecords(config, endpoints) {
     return this.fetchRecordsWithAuth(config, {
       endpoints,
-      returnEmptyIfApiKeyOnly: true,
       fetcher: (authOptions, endpointList) => this.fetchNetworkEndpoints(config, endpointList, authOptions, false)
     });
   },
 
-  async fetchNetworkEndpoints(config, endpoints, authOptions, hasRetriedAuthFailure) {
+  async fetchNetworkEndpoints(config, endpoints, authOptions, hasRetriedAuthFailure, extractRecords) {
     const shouldRetryAfterAuthFailure = this.shouldRetryAfterAuthFailure(config, authOptions) && !hasRetriedAuthFailure;
     let lastError = null;
+    let hadSuccessfulResponse = false;
 
     for (const endpoint of endpoints) {
       try {
         const response = await this.requestJson("GET", config, endpoint, null, null, authOptions);
-        const records = this.extractNetworkRecords(response);
+        const records = extractRecords
+          ? extractRecords(response, endpoint)
+          : this.extractNetworkRecords(response);
+        hadSuccessfulResponse = true;
 
         if (records.length > 0) {
           return records;
         }
       } catch (error) {
         if (shouldRetryAfterAuthFailure && this.isAuthFailure(error)) {
-          return this.retryNetworkFetchAfterReauth(config, endpoints, authOptions);
+          if (hadSuccessfulResponse) {
+            lastError = error;
+            continue;
+          }
+          return this.retryNetworkFetchAfterReauth(config, endpoints, authOptions, extractRecords);
         }
 
         lastError = error;
       }
     }
 
-    if (lastError) {
+    if (!hadSuccessfulResponse && lastError) {
       throw lastError;
     }
 
     return [];
   },
 
-  async retryNetworkFetchAfterReauth(config, endpoints, authOptions) {
+  async retryNetworkFetchAfterReauth(config, endpoints, authOptions, extractRecords) {
     this.clearSessionCookies(config);
 
     await this.login(
@@ -928,7 +938,8 @@ module.exports = NodeHelper.create({
         apiKey: authOptions && authOptions.apiKey,
         apiKeyHeader: authOptions && authOptions.apiKeyHeader
       },
-      true
+      true,
+      extractRecords
     );
   },
 
@@ -1295,11 +1306,13 @@ module.exports = NodeHelper.create({
         hotspotPassword
       };
     } catch (error) {
-      console.warn("[MMM-UniFiGuestWiFi] Voucher/hotspot password fetch failed:", error.message);
+      const warning = getSanitizedControllerError(error, "Unable to retrieve vouchers or portal password.");
+      console.warn("[MMM-UniFiGuestWiFi] Voucher/hotspot password fetch failed:", warning);
       return {
         voucherCode: null,
-        voucherStatus: null,
-        hotspotPassword: null
+        voucherStatus: "unavailable",
+        hotspotPassword: null,
+        warning
       };
     }
   },
@@ -1307,31 +1320,12 @@ module.exports = NodeHelper.create({
   async fetchVoucherEndpoints(config, endpoints) {
     return this.fetchRecordsWithAuth(config, {
       endpoints,
-      returnEmptyIfApiKeyOnly: true,
       fetcher: (authOptions, endpointList) => this.fetchRecordsFromAnyEndpoint(config, endpointList, authOptions)
     });
   },
 
   async fetchRecordsFromAnyEndpoint(config, endpoints, authOptions) {
-    let lastError = null;
-
-    for (const endpoint of endpoints) {
-      try {
-        const response = await this.requestJson("GET", config, endpoint, null, null, authOptions);
-        const records = this.extractNetworkRecords(response);
-        if (records.length > 0) {
-          return records;
-        }
-      } catch (error) {
-        lastError = error;
-      }
-    }
-
-    if (lastError) {
-      throw lastError;
-    }
-
-    return [];
+    return this.fetchNetworkEndpoints(config, endpoints, authOptions, false);
   },
 
   async fetchHotspotPassword(config) {
@@ -1409,50 +1403,16 @@ module.exports = NodeHelper.create({
       return null;
     };
 
-    const auth = getRequestAuthContext(config, "auto");
-
-    if (auth.apiKey && (auth.authMode === "auto" || auth.authMode === "apikey")) {
-      for (const endpoint of endpoints) {
-        try {
-          const response = await this.requestJson("GET", config, endpoint, null, null, {
-            apiKey: auth.apiKey,
-            apiKeyHeader: auth.apiKeyHeader
-          });
-
-          const passwordFromApiKey = parseHotspotPassword(response, endpoint);
-          if (passwordFromApiKey) {
-            return passwordFromApiKey;
-          }
-        } catch (error) {
-          if (auth.authMode === "apikey" && !this.isAuthFailure(error)) {
-            throw error;
-          }
+    const passwords = await this.fetchRecordsWithAuth(config, {
+      endpoints,
+      fetcher: (authOptions, endpointList) => this.fetchNetworkEndpoints(
+        config, endpointList, authOptions, false, (response, endpoint) => {
+          const password = parseHotspotPassword(response, endpoint);
+          return password ? [password] : [];
         }
-      }
-    }
-
-    if (auth.username && auth.password) {
-      if (!this.getSessionCookies(config).length) {
-        await this.login(config, auth.username, auth.password);
-      }
-
-      for (const endpoint of endpoints) {
-        try {
-          const response = await this.requestJson("GET", config, endpoint, null, null, { cookies: true });
-          const passwordFromLogin = parseHotspotPassword(response, endpoint);
-          if (passwordFromLogin) {
-            return passwordFromLogin;
-          }
-        } catch (error) {
-          if (this.isAuthFailure(error)) {
-            this.clearSessionCookies(config);
-            await this.login(config, auth.username, auth.password);
-          }
-        }
-      }
-    }
-
-    return null;
+      )
+    });
+    return passwords[0] || null;
   },
 
   scheduleRefresh(config, interval) {
