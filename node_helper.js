@@ -8,6 +8,8 @@ const DEFAULT_REFRESH_INTERVAL_MS = 300000;
 const MIN_REFRESH_INTERVAL_MS = 60000;
 const MAX_REFRESH_INTERVAL_MS = 86400000;
 const MAX_RESPONSE_BYTES = 1048576;
+const MAX_INSTANCES = 16;
+const INSTANCE_ID_PATTERN = /^[A-Za-z0-9._:-]{1,128}$/;
 
 function normalizeBoolean(value, fallback) {
   if (value === undefined || value === null) {
@@ -186,7 +188,8 @@ function hasConfiguredApiAccess(config) {
 
 module.exports = NodeHelper.create({
   start() {
-    this.refreshTimers = {};
+    this.refreshTimers = Object.create(null);
+    this.requestStates = new Map();
     this.sessionCookiesByContext = {};
     if (!getServerPolicy().verifySSL) {
       console.warn("[MMM-UniFiGuestWiFi] WARNING: TLS certificate verification is disabled by server policy.");
@@ -261,10 +264,11 @@ module.exports = NodeHelper.create({
     }
   },
 
-  async handleConfig(config) {
+  async handleConfig(config, isRefresh = false) {
     let normalizedConfig = {
-      instanceId: normalizeString(config && config.instanceId, "")
+      instanceId: ""
     };
+    let requestState;
     let authMode;
     let wifiData;
     let voucherData = {
@@ -274,6 +278,32 @@ module.exports = NodeHelper.create({
     };
 
     try {
+      if (!config || typeof config !== "object" || Array.isArray(config) ||
+          ["instanceId", "ssid", "password", "securityType"].some((key) => (
+            config[key] != null && (typeof config[key] !== "string" || config[key].length > 4096)
+          )) ||
+          (config.instanceId && !INSTANCE_ID_PATTERN.test(config.instanceId)) ||
+          ["requestTimeout", "refreshInterval"].some((key) => {
+            const value = config[key];
+            return value != null && ((typeof value !== "number" && typeof value !== "string") || !Number.isFinite(Number(value)));
+          })) {
+        throw new Error("Invalid socket configuration.");
+      }
+      normalizedConfig.instanceId = config.instanceId || "";
+      if (!this.requestStates) this.requestStates = new Map();
+      const instanceKey = normalizedConfig.instanceId || "default";
+      const existingState = this.requestStates.get(instanceKey);
+      if (existingState && (existingState.pending || !isRefresh)) {
+        if (existingState.response) this.sendSocketNotification("UNIFI_GUESTWIFI_DATA", existingState.response);
+        else if (existingState.error) this.sendSocketNotification("UNIFI_GUESTWIFI_ERROR", existingState.error);
+        return;
+      }
+      if (!existingState && this.requestStates.size >= MAX_INSTANCES) {
+        throw new Error("Module instance limit reached.");
+      }
+      requestState = existingState || {};
+      requestState.pending = true;
+      this.requestStates.set(instanceKey, requestState);
       normalizedConfig = this.normalizeConfig(config || {});
       authMode = normalizedConfig.authMode;
 
@@ -317,6 +347,7 @@ module.exports = NodeHelper.create({
         }
       }
 
+      if (this.requestStates.get(normalizedConfig.instanceId || "default") !== requestState) return;
       const response = {
         ...wifiData,
         ...voucherData,
@@ -342,6 +373,8 @@ module.exports = NodeHelper.create({
         Boolean(response.hotspotPassword)
       );
 
+      requestState.response = response;
+      requestState.error = null;
       this.sendSocketNotification("UNIFI_GUESTWIFI_DATA", response);
 
       if (authMode === "api" || authMode === "auto") {
@@ -350,15 +383,26 @@ module.exports = NodeHelper.create({
         this.clearRefreshTimer(normalizedConfig.instanceId);
       }
     } catch (error) {
+      if (requestState && this.requestStates.get(normalizedConfig.instanceId || "default") !== requestState) return;
       const sanitizedError = getSanitizedControllerError(
         error,
         "Unable to retrieve UniFi guest WiFi details."
       );
       console.error("[MMM-UniFiGuestWiFi] Error handling config:", sanitizedError);
-      this.sendSocketNotification("UNIFI_GUESTWIFI_ERROR", {
+      const publicError = {
         instanceId: normalizedConfig.instanceId || null,
         error: sanitizedError
-      });
+      };
+      if (requestState) {
+        requestState.response = null;
+        requestState.error = publicError;
+      }
+      this.sendSocketNotification("UNIFI_GUESTWIFI_ERROR", publicError);
+      if (requestState && (authMode === "api" || authMode === "auto")) {
+        this.scheduleRefresh(normalizedConfig, normalizedConfig.refreshInterval);
+      }
+    } finally {
+      if (requestState) requestState.pending = false;
     }
   },
 
@@ -393,7 +437,7 @@ module.exports = NodeHelper.create({
       apiKeyHeader: serverController.apiKeyHeader,
       site: serverPolicy.site,
       verifySSL: serverPolicy.verifySSL,
-      requestTimeout: Math.max(1000, normalizeNumber(config.requestTimeout, DEFAULT_REQUEST_TIMEOUT_MS)),
+      requestTimeout: normalizeClampedInteger(config.requestTimeout, DEFAULT_REQUEST_TIMEOUT_MS, 1000, 30000),
       refreshInterval: normalizeClampedInteger(
         config.refreshInterval,
         DEFAULT_REFRESH_INTERVAL_MS,
@@ -463,15 +507,7 @@ module.exports = NodeHelper.create({
       throw new Error("No hotspot or guest networks found on controller");
     }
 
-    const preferredSsid = normalizeString(config.ssid, "").toLowerCase();
-    const preferredMatch = preferredSsid
-      ? guestNetworks.find((network) => {
-        const networkSsid = normalizeString(network.name || network.ssid || "", "").toLowerCase();
-        return networkSsid && networkSsid === preferredSsid;
-      })
-      : null;
-
-    const guestNetwork = preferredMatch || guestNetworks[0];
+    const guestNetwork = guestNetworks[0];
     const ssid = guestNetwork.name || guestNetwork.ssid || "Guest Network";
     const password = guestNetwork.passwd || guestNetwork.psk || guestNetwork.passphrase || "";
     const securityType = this.mapSecurityType(guestNetwork);
@@ -825,18 +861,6 @@ module.exports = NodeHelper.create({
 
     const matching = normalized.filter((record) => this.isHotspotOrGuestNetwork(record.raw));
 
-    const preferredSsid = normalizeString(config.ssid, "").toLowerCase();
-    if (preferredSsid && preferredSsid !== "guest network") {
-      const preferredMatch = normalized.find((entry) => {
-        const ssid = normalizeString(entry.ssid, "").toLowerCase();
-        return ssid === preferredSsid;
-      });
-
-      if (preferredMatch) {
-        return [preferredMatch.raw];
-      }
-    }
-
     if (matching.length > 0) {
       return matching
         .map((entry, index) => ({
@@ -1030,7 +1054,15 @@ module.exports = NodeHelper.create({
   },
 
   isHotspotOrGuestNetwork(record) {
-    return this.getGuestNetworkScore(record) > 0;
+    if (!record || typeof record !== "object") return false;
+    if (["hotspot_enabled", "portal_enabled", "is_guest", "guest_policy"]
+      .some((key) => normalizeBoolean(record[key], false))) {
+      return true;
+    }
+
+    return [record.type, record.network_type, record.purpose].some((value) => (
+      typeof value === "string" && /^(guest|hotspot)(?:$|[ _-])/i.test(value.trim())
+    ));
   },
 
   getGuestNetworkScore(record) {
@@ -1313,11 +1345,16 @@ module.exports = NodeHelper.create({
       `/api/s/${site}/get/setting`
     ];
 
-    const findPasswordInNode = (node, scoped) => {
-      if (!node || typeof node !== "object") {
+    const findPasswordInNode = (node, scoped, depth = 0) => {
+      if (!node || typeof node !== "object" || depth > 16) {
         return null;
       }
 
+      const marker = node.key || node.setting || node.purpose;
+      const settingKey = typeof marker === "string" ? marker.trim().toLowerCase() : "";
+      const nextScoped = settingKey
+        ? ["guest_access", "hotspot", "portal"].includes(settingKey)
+        : scoped;
       const directCandidates = [
         node.portal_customized && node.portal_customized.password,
         node.password,
@@ -1326,11 +1363,7 @@ module.exports = NodeHelper.create({
         node.passphrase
       ];
 
-      const looksLikeSettingPayload = directCandidates.some((candidate) => {
-        return typeof candidate === "string" && candidate.trim();
-      });
-
-      if (scoped || looksLikeSettingPayload) {
+      if (nextScoped) {
         for (const candidate of directCandidates) {
           if (typeof candidate === "string" && candidate.trim()) {
             return candidate.trim();
@@ -1338,22 +1371,18 @@ module.exports = NodeHelper.create({
         }
       }
 
-      const nextScoped = scoped || /guest_access|hotspot|portal/.test(
-        [node.key, node._id, node.name, node.setting, node.purpose]
-          .map((value) => String(value == null ? "" : value).toLowerCase())
-          .join(" ")
-      );
-
-      for (const value of Object.values(node)) {
+      for (const [key, value] of Object.entries(node)) {
+        const childScoped = ["guest_access", "hotspot", "portal"].includes(key) ||
+          (nextScoped && ["data", "result", "results", "records", "items", "payload"].includes(key));
         if (Array.isArray(value)) {
           for (const entry of value) {
-            const nestedMatch = findPasswordInNode(entry, nextScoped);
+            const nestedMatch = findPasswordInNode(entry, childScoped, depth + 1);
             if (nestedMatch) {
               return nestedMatch;
             }
           }
         } else if (value && typeof value === "object") {
-          const nestedMatch = findPasswordInNode(value, nextScoped);
+          const nestedMatch = findPasswordInNode(value, childScoped, depth + 1);
           if (nestedMatch) {
             return nestedMatch;
           }
@@ -1436,11 +1465,12 @@ module.exports = NodeHelper.create({
     );
 
     if (this.refreshTimers[configKey]) {
-      clearInterval(this.refreshTimers[configKey]);
+      clearTimeout(this.refreshTimers[configKey]);
     }
 
-    this.refreshTimers[configKey] = setInterval(() => {
-      this.handleConfig(config);
+    this.refreshTimers[configKey] = setTimeout(() => {
+      delete this.refreshTimers[configKey];
+      this.handleConfig(config, true);
     }, safeInterval);
 
     console.log(`[MMM-UniFiGuestWiFi] Scheduled refresh every ${safeInterval}ms`);
@@ -1449,17 +1479,18 @@ module.exports = NodeHelper.create({
   clearRefreshTimer(instanceId) {
     const configKey = normalizeString(instanceId, "default");
     if (this.refreshTimers[configKey]) {
-      clearInterval(this.refreshTimers[configKey]);
+      clearTimeout(this.refreshTimers[configKey]);
       delete this.refreshTimers[configKey];
     }
   },
 
   stop() {
     Object.values(this.refreshTimers).forEach((timer) => {
-      clearInterval(timer);
+      clearTimeout(timer);
     });
 
-    this.refreshTimers = {};
+    this.refreshTimers = Object.create(null);
+    this.requestStates = new Map();
     this.sessionCookiesByContext = {};
     console.log("[MMM-UniFiGuestWiFi] Timers cleaned up");
   }

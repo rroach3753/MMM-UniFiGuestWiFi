@@ -20,6 +20,169 @@ Module._load = function (request, parent, isMain) {
 const helper = require("../node_helper");
 Module._load = originalLoad;
 
+test("malformed socket configurations produce sanitized errors instead of rejected promises", async () => {
+  const originalSend = helper.sendSocketNotification;
+  const sent = [];
+  helper.sendSocketNotification = (notification, payload) => sent.push({ notification, payload });
+  try {
+    for (const payload of [
+      [],
+      { instanceId: { toString: null } },
+      { ssid: { toString: null } },
+      { requestTimeout: { valueOf: null, toString: null } }
+    ]) {
+      await assert.doesNotReject(helper.handleConfig(payload));
+      assert.equal(sent.at(-1).notification, "UNIFI_GUESTWIFI_ERROR");
+      assert.equal(sent.at(-1).payload.error, "Unable to retrieve UniFi guest WiFi details.");
+    }
+  } finally {
+    helper.sendSocketNotification = originalSend;
+  }
+});
+
+test("socket configurations retain at most sixteen polls and coalesce duplicate work", async () => {
+  const originalNormalize = helper.normalizeConfig;
+  const originalFetch = helper.getAPIBasedWiFi;
+  const originalSchedule = helper.scheduleRefresh;
+  const originalSend = helper.sendSocketNotification;
+  const completions = [];
+  const sent = [];
+  helper.refreshTimers = Object.create(null);
+  helper.requestStates = new Map();
+  helper.normalizeConfig = (config) => ({ ...config, authMode: "api", refreshInterval: 60000 });
+  helper.getAPIBasedWiFi = () => new Promise((resolve) => completions.push(resolve));
+  helper.scheduleRefresh = () => {};
+  helper.sendSocketNotification = (notification, payload) => sent.push({ notification, payload });
+  try {
+    const pending = [];
+    for (let index = 0; index < 18; index++) {
+      pending.push(helper.handleConfig({ instanceId: `instance-${index}` }));
+    }
+    await helper.handleConfig({ instanceId: "instance-0" });
+    assert.equal(helper.requestStates.size, 16);
+    assert.equal(completions.length, 16);
+    completions.forEach((complete) => complete({ ssid: "Guest" }));
+    await Promise.all(pending);
+    await helper.handleConfig({ instanceId: "instance-0", ssid: "Attacker" });
+    assert.equal(completions.length, 16);
+    assert.equal(sent.at(-1).payload.ssid, "Guest");
+    const refresh = helper.handleConfig({ instanceId: "instance-0" }, true);
+    assert.equal(completions.length, 17);
+    await helper.handleConfig({ instanceId: "instance-0" }, true);
+    assert.equal(completions.length, 17);
+    completions.at(-1)({ ssid: "Updated Guest" });
+    await refresh;
+    assert.equal(sent.at(-1).payload.ssid, "Updated Guest");
+    const stoppedRefresh = helper.handleConfig({ instanceId: "instance-0" }, true);
+    const beforeStop = sent.length;
+    helper.stop();
+    completions.at(-1)({ ssid: "Stale" });
+    await stoppedRefresh;
+    assert.equal(sent.length, beforeStop);
+    assert.equal(helper.requestStates.size, 0);
+  } finally {
+    helper.normalizeConfig = originalNormalize;
+    helper.getAPIBasedWiFi = originalFetch;
+    helper.scheduleRefresh = originalSchedule;
+    helper.sendSocketNotification = originalSend;
+    helper.requestStates = new Map();
+  }
+});
+
+test("guest passwords use automatic controller discovery without a fixed SSID in API and auto modes", async () => {
+  const names = ["UNIFI_GUEST_WIFI_AUTH_MODE", "UNIFI_GUEST_WIFI_URL",
+    "UNIFI_GUEST_WIFI_ALLOW_WIFI_PASSWORD"];
+  const previous = Object.fromEntries(names.map((name) => [name, process.env[name]]));
+  const originalFetch = helper.fetchFirstSuccessfulNetworkRecords;
+  const originalStandard = helper.mapWiFiStandard;
+  process.env.UNIFI_GUEST_WIFI_AUTH_MODE = "api";
+  process.env.UNIFI_GUEST_WIFI_URL = "https://trusted.example";
+  process.env.UNIFI_GUEST_WIFI_ALLOW_WIFI_PASSWORD = "true";
+  let guestName = "Trusted Guest";
+  helper.fetchFirstSuccessfulNetworkRecords = async () => [
+    { name: "Private Staff", purpose: "corporate", passwd: "staff-secret" },
+    { name: "TRUSTED GUEST", purpose: "corporate", passwd: "wrong-case-secret" },
+    { name: guestName, portal_enabled: true, passwd: "guest-secret" }
+  ];
+  helper.mapWiFiStandard = async () => null;
+  try {
+    for (const mode of ["api", "auto"]) {
+      process.env.UNIFI_GUEST_WIFI_AUTH_MODE = mode;
+      const config = helper.normalizeConfig({ ssid: "Private Staff", apiSsid: "Private Staff" });
+      assert.equal(Object.hasOwn(config, "apiSsid"), false);
+      const wifi = await helper.getAPIBasedWiFi(config);
+      assert.equal(wifi.ssid, guestName);
+      assert.equal(wifi.password, "guest-secret");
+    }
+    guestName = "Renamed Wireless";
+    const renamed = await helper.getAPIBasedWiFi(helper.normalizeConfig({}));
+    assert.equal(renamed.ssid, "Renamed Wireless");
+    assert.equal(renamed.password, "guest-secret");
+    const discovered = await helper.fetchHotspotOrGuestNetworks({ ssid: "Private Staff" });
+    assert.deepEqual(discovered.map((network) => network.name), ["Renamed Wireless"]);
+  } finally {
+    helper.fetchFirstSuccessfulNetworkRecords = originalFetch;
+    helper.mapWiFiStandard = originalStandard;
+    Object.entries(previous).forEach(([name, value]) => {
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    });
+  }
+});
+
+test("active vouchers take precedence and the guest portal password is the no-voucher fallback", async () => {
+  const originalVouchers = helper.fetchVoucherEndpoints;
+  const originalPassword = helper.fetchHotspotPassword;
+  let vouchers = [{ code: "guest-voucher", status: "active" }];
+  let passwordFetches = 0;
+  helper.fetchVoucherEndpoints = async () => vouchers;
+  helper.fetchHotspotPassword = async () => { passwordFetches++; return "guest-portal-password"; };
+  const config = { site: "default", includeVouchers: true, includeHotspotPassword: true };
+  try {
+    assert.deepEqual(await helper.getVoucherData(config), {
+      voucherCode: "guest-voucher", voucherStatus: "active", hotspotPassword: null
+    });
+    assert.equal(passwordFetches, 0);
+    for (const unavailable of [[], [{ code: "expired-voucher", status: "expired" }]]) {
+      vouchers = unavailable;
+      assert.deepEqual(await helper.getVoucherData(config), {
+        voucherCode: null, voucherStatus: "none", hotspotPassword: "guest-portal-password"
+      });
+    }
+    assert.equal(passwordFetches, 2);
+  } finally {
+    helper.fetchVoucherEndpoints = originalVouchers;
+    helper.fetchHotspotPassword = originalPassword;
+  }
+});
+
+test("portal password parsing never treats unrelated settings passwords as guest secrets", async () => {
+  const originalRequest = helper.requestJson;
+  const config = { site: "default", authMode: "apikey", apiKey: "server-key" };
+  try {
+    for (const unrelated of [
+      { data: [{ key: "smtp", password: "smtp-secret" }] },
+      { data: [{ password: "unscoped-secret" }] },
+      { data: [{ key: "guest_access", smtp: { password: "smtp-secret" } }] }
+    ]) {
+      helper.requestJson = async (_method, _config, endpoint) => {
+        if (endpoint.endsWith("/guest_access")) return { data: [{ key: "smtp", password: "smtp-secret" }] };
+        return unrelated;
+      };
+      assert.equal(await helper.fetchHotspotPassword(config), null);
+    }
+    helper.requestJson = async (_method, _config, endpoint) => {
+      if (endpoint.endsWith("/guest_access")) return {};
+      return { data: [{ key: "smtp", password: "smtp-secret" }, { key: "guest_access", x_password: "portal-secret" }] };
+    };
+    assert.equal(await helper.fetchHotspotPassword(config), "portal-secret");
+    helper.requestJson = async () => ({ data: [{ portal_customized: { password: "scoped-secret" } }] });
+    assert.equal(await helper.fetchHotspotPassword(config), "scoped-secret");
+  } finally {
+    helper.requestJson = originalRequest;
+  }
+});
+
 function mockHttpsResponse(chunks, statusCode = 200) {
   const originalRequest = https.request;
 
@@ -245,17 +408,17 @@ test("refresh intervals are finite integers clamped to safe bounds", () => {
 });
 
 test("refresh timers are replaced by stable instance ID", () => {
-      const originalSetInterval = global.setInterval;
-      const originalClearInterval = global.clearInterval;
+      const originalSetTimeout = global.setTimeout;
+      const originalClearTimeout = global.clearTimeout;
       const createdTimers = [];
       const clearedTimers = [];
 
-      global.setInterval = (callback, interval) => {
+      global.setTimeout = (callback, interval) => {
         const timer = { callback, interval, id: createdTimers.length + 1 };
         createdTimers.push(timer);
         return timer;
       };
-      global.clearInterval = (timer) => clearedTimers.push(timer);
+      global.clearTimeout = (timer) => clearedTimers.push(timer);
       helper.refreshTimers = {};
 
       try {
@@ -278,8 +441,8 @@ test("refresh timers are replaced by stable instance ID", () => {
         assert.deepEqual(clearedTimers, [createdTimers[0]]);
         assert.equal(helper.refreshTimers.module_1, createdTimers[1]);
       } finally {
-        global.setInterval = originalSetInterval;
-        global.clearInterval = originalClearInterval;
+        global.setTimeout = originalSetTimeout;
+        global.clearTimeout = originalClearTimeout;
         helper.refreshTimers = {};
       }
 });
@@ -317,7 +480,7 @@ test("automatic discovery prefers a portal WLAN over an IoT guest-policy WLAN", 
   }
 });
 
-test("configured SSID remains the exact API network selector", async () => {
+test("renderer SSID selectors cannot override automatic hotspot priority", async () => {
   const originalFetch = helper.fetchFirstSuccessfulNetworkRecords;
   helper.fetchFirstSuccessfulNetworkRecords = async () => [
     { name: "RMR IoT WiFi", guest_policy: true },
@@ -327,10 +490,11 @@ test("configured SSID remains the exact API network selector", async () => {
   try {
     const networks = await helper.fetchHotspotOrGuestNetworks({
       site: "default",
-      ssid: "Crowley's Crossroad Connection"
+      ssid: "RMR IoT WiFi",
+      apiSsid: "RMR IoT WiFi"
     });
 
-    assert.deepEqual(networks.map((network) => network.name), ["Crowley's Crossroad Connection"]);
+    assert.deepEqual(networks.map((network) => network.name), ["Crowley's Crossroad Connection", "RMR IoT WiFi"]);
   } finally {
     helper.fetchFirstSuccessfulNetworkRecords = originalFetch;
   }

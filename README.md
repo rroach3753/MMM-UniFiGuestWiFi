@@ -104,7 +104,9 @@ hides the portal password fallback.
 
 Data-source and controller security policy is configured only in the
 MagicMirror server environment. Renderer `config.js` values for `authMode`,
-`site`, or `verifySSL` are ignored.
+`site`, or `verifySSL` are ignored. API mode automatically discovers guest/hotspot
+WLANs from UniFi controller flags and network types; no fixed SSID is required.
+Renderer `ssid` only supplies config-mode or auto-mode fallback data.
 
 ### Config Mode Options (`UNIFI_GUEST_WIFI_AUTH_MODE=config`)
 
@@ -119,7 +121,7 @@ MagicMirror server environment. Renderer `config.js` values for `authMode`,
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `requestTimeout` | number | `10000` | HTTP request timeout in milliseconds |
+| `requestTimeout` | number | `10000` | HTTP request timeout in milliseconds, clamped to 1000-30000 |
 | `refreshInterval` | number | `300000` | Data refresh interval in milliseconds; finite integers are clamped to 60000–86400000 (1 minute–24 hours) |
 | `enhancedWiFiStandardDetection` | boolean | `true` | Use AP capability data (`stat/device`) to improve WiFi generation badging |
 
@@ -271,6 +273,21 @@ preferred over WLANs that only use UniFi's guest policy, so isolated IoT
 networks do not take precedence over a captive-portal guest network. The
 module reports an error rather than displaying an unrelated WLAN when no guest
 or hotspot WLAN can be identified.
+
+No SSID needs to be hard-coded, including when guest password disclosure is
+enabled. Discovery follows controller-reported guest/hotspot settings rather
+than a saved network name, so renaming the guest WLAN does not require a module
+configuration change. An SSID containing "guest" alone is not sufficient to
+qualify a private WLAN, and browser-supplied network selectors are ignored.
+
+For the voucher-first portal flow, keep both
+`UNIFI_GUEST_WIFI_ALLOW_VOUCHERS=true` and
+`UNIFI_GUEST_WIFI_ALLOW_HOTSPOT_PASSWORD=true`, and set
+`includeHotspotPassword: true` in the renderer configuration. An available
+active voucher is displayed instead of the portal password. If no active
+voucher is available, the guest portal password is displayed as the fallback.
+This intentionally exposes guest access credentials to permitted mirror
+clients; it does not authorize exposing unrelated controller passwords.
 
 ### Example 5: Auto Mode with Fallback
 
@@ -556,6 +573,9 @@ shared fallbacks.
 
 ### Migration from renderer policy in config.js
 
+API-mode guest/hotspot discovery is automatic; no server-side SSID is needed.
+The renderer `ssid` remains available only for config/auto fallback.
+
 Controller settings in `config.js` are no longer accepted. This prevents a
 renderer or socket client from selecting an arbitrary request destination and
 keeps controller credentials out of browser memory and socket payloads.
@@ -591,6 +611,12 @@ config: {
 ```
 
 Threat model notes:
+- Polling work is limited to 16 retained instance IDs per helper run. Duplicate
+  configuration messages replay cached data/errors and cannot create additional
+  fetches. Each instance refreshes only after its preceding fetch finishes.
+  Restart MagicMirror to apply changed renderer polling/fallback options.
+- Portal-password lookup accepts only explicitly guest/portal-scoped settings;
+  unrelated passwords in generic controller settings are never fallback values.
 - Socket clients are untrusted: MagicMirror's helper API does not securely
   identify a notification sender, and responses are broadcast. `instanceId`
   is routing metadata only, not authorization.

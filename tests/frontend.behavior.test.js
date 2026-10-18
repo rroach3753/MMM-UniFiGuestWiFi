@@ -71,3 +71,38 @@ test("WiFi password remains available for config-mode fallback processing", () =
   assert.equal(payload.isHidden, true);
   assert.equal(Object.hasOwn(payload, "controllerPassword"), false);
 });
+
+test("renders the active voucher or the guest portal password fallback", () => {
+  const originalDocument = global.document;
+  global.document = {
+    createElement() {
+      return {
+        children: [],
+        textContent: "",
+        appendChild(child) { this.children.push(child); }
+      };
+    }
+  };
+  const moduleInstance = createModule({ includeHotspotPassword: true });
+  moduleInstance.updateDom = () => {};
+  function text(element) {
+    return element ? [element.textContent, ...element.children.map(text)].join(" ") : "";
+  }
+  try {
+    moduleInstance.socketNotificationReceived("UNIFI_GUESTWIFI_DATA", {
+      instanceId: "module_1", ssid: "Discovered Hotspot", qrString: "WIFI:S:Discovered Hotspot;;",
+      voucherCode: "guest-voucher", voucherStatus: "active", hotspotPassword: null
+    });
+    assert.match(text(moduleInstance.createVoucherSection()), /guest-voucher/);
+    assert.doesNotMatch(text(moduleInstance.createQRCodeSection()), /Portal Password:/);
+    moduleInstance.socketNotificationReceived("UNIFI_GUESTWIFI_DATA", {
+      instanceId: "module_1", ssid: "Renamed Hotspot", qrString: "WIFI:S:Renamed Hotspot;;",
+      voucherCode: null, voucherStatus: "none", hotspotPassword: "guest-portal-password"
+    });
+    assert.match(text(moduleInstance.createQRCodeSection()), /Portal Password: guest-portal-password/);
+    assert.doesNotMatch(text(moduleInstance.createVoucherSection()), /guest-voucher/);
+  } finally {
+    if (originalDocument === undefined) delete global.document;
+    else global.document = originalDocument;
+  }
+});
