@@ -15,7 +15,7 @@ Module.register("MMM-UniFiGuestWiFi", {
     enhancedWiFiStandardDetection: true,
     showVoucher: true,
     maskPassword: true,
-    voucherLabel: "Guest Code",
+    voucherLabel: "Voucher Code:",
     includeHotspotPassword: false,
     qrSize: 150,
     colorDark: "#000000",
@@ -206,8 +206,10 @@ Module.register("MMM-UniFiGuestWiFi", {
     var securityEl;
     var securityBadge;
     var securityTypeText;
+    var securityLabel;
     var wifiStandardEl;
     var wifiStandardBadge;
+    var wifiStandardLabel;
 
     if (!this.config.showSecurityType && !(this.config.showWiFiStandard && this.dataState.wifiStandard)) {
       return;
@@ -216,28 +218,36 @@ Module.register("MMM-UniFiGuestWiFi", {
     securityMetaRow = document.createElement("div");
     securityMetaRow.className = "security-meta-row";
 
-    if (this.config.showSecurityType) {
-      securityEl = document.createElement("div");
-      securityBadge = document.createElement("span");
-      securityTypeText = String(this.dataState.securityType || "OPEN");
-
-      securityEl.className = "security-row";
-      securityBadge.className = "security-badge security-" + securityTypeText.toLowerCase();
-      securityBadge.textContent = securityTypeText.replace(/_/g, " ");
-      securityEl.appendChild(securityBadge);
-      securityMetaRow.appendChild(securityEl);
-    }
-
     if (this.config.showWiFiStandard && this.dataState.wifiStandard) {
       wifiStandardEl = document.createElement("div");
+      wifiStandardLabel = document.createElement("span");
       wifiStandardBadge = document.createElement("span");
 
-      wifiStandardEl.className = "wifi-standard-row";
+      wifiStandardEl.className = "security-meta-item wifi-standard-row";
+      wifiStandardLabel.className = "security-meta-label";
+      wifiStandardLabel.textContent = "WiFi Standard:";
       wifiStandardBadge.className = "wifi-standard-badge";
       wifiStandardBadge.textContent = this.dataState.wifiStandard;
 
+      wifiStandardEl.appendChild(wifiStandardLabel);
       wifiStandardEl.appendChild(wifiStandardBadge);
       securityMetaRow.appendChild(wifiStandardEl);
+    }
+
+    if (this.config.showSecurityType) {
+      securityEl = document.createElement("div");
+      securityLabel = document.createElement("span");
+      securityBadge = document.createElement("span");
+      securityTypeText = String(this.dataState.securityType || "OPEN");
+
+      securityEl.className = "security-meta-item security-row";
+      securityLabel.className = "security-meta-label";
+      securityLabel.textContent = "WiFi Encryption:";
+      securityBadge.className = "security-badge security-" + securityTypeText.toLowerCase();
+      securityBadge.textContent = securityTypeText.replace(/_/g, " ");
+      securityEl.appendChild(securityLabel);
+      securityEl.appendChild(securityBadge);
+      securityMetaRow.appendChild(securityEl);
     }
 
     container.appendChild(securityMetaRow);
@@ -290,7 +300,7 @@ Module.register("MMM-UniFiGuestWiFi", {
 
     qrSection.appendChild(qrContainer);
 
-    if (this.dataState.hotspotPassword && this.config.includeHotspotPassword) {
+    if (this.config.layoutVertical && !this.dataState.voucherCode && this.dataState.hotspotPassword && this.config.includeHotspotPassword) {
       portalPwdWrap = document.createElement("div");
       portalPwdLabel = document.createElement("div");
       portalPwdValue = document.createElement("div");
@@ -340,10 +350,22 @@ Module.register("MMM-UniFiGuestWiFi", {
       voucherSection.appendChild(voucherLabel);
       voucherSection.appendChild(voucherCode);
     } else if (this.dataState.hotspotPassword && this.config.includeHotspotPassword) {
-      noVouchersLabel = document.createElement("div");
-      noVouchersLabel.className = "label warning";
-      noVouchersLabel.textContent = this.config.noVouchersMessage;
-      voucherSection.appendChild(noVouchersLabel);
+      if (this.config.layoutVertical) {
+        noVouchersLabel = document.createElement("div");
+        noVouchersLabel.className = "label warning";
+        noVouchersLabel.textContent = this.config.noVouchersMessage;
+        voucherSection.appendChild(noVouchersLabel);
+      } else {
+        voucherLabel = document.createElement("div");
+        voucherCode = document.createElement("div");
+
+        voucherLabel.className = "label";
+        voucherLabel.textContent = "Password:";
+        voucherCode.className = "voucher-code";
+        voucherCode.textContent = this.dataState.hotspotPassword;
+        voucherSection.appendChild(voucherLabel);
+        voucherSection.appendChild(voucherCode);
+      }
     }
 
     return voucherSection.children.length > 0 ? voucherSection : null;
@@ -398,6 +420,11 @@ Module.register("MMM-UniFiGuestWiFi", {
     this.appendSecurityMetaRow(infoSection);
     this.appendPasswordRow(infoSection);
 
+    voucherSection = this.createVoucherSection();
+    if (voucherSection && !this.config.layoutVertical) {
+      infoSection.appendChild(voucherSection);
+    }
+
     contentWrapper.appendChild(infoSection);
 
     qrSection = this.createQRCodeSection();
@@ -407,8 +434,7 @@ Module.register("MMM-UniFiGuestWiFi", {
 
     container.appendChild(contentWrapper);
 
-    voucherSection = this.createVoucherSection();
-    if (voucherSection) {
+    if (voucherSection && this.config.layoutVertical) {
       container.appendChild(voucherSection);
     }
 

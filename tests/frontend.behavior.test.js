@@ -128,3 +128,126 @@ test("renders the active voucher or the guest portal password fallback", () => {
     else global.document = originalDocument;
   }
 });
+
+test("renders WiFi standard and encryption without a separator vertically and on separate horizontal rows", () => {
+  const originalDocument = global.document;
+  global.document = {
+    createElement() {
+      return {
+        children: [],
+        textContent: "",
+        appendChild(child) { this.children.push(child); }
+      };
+    }
+  };
+  function text(element) {
+    return element ? [element.textContent, ...element.children.map(text)].join(" ") : "";
+  }
+  function findByClass(element, className) {
+    if (element.className === className) return element;
+    for (const child of element.children) {
+      const match = findByClass(child, className);
+      if (match) return match;
+    }
+    return null;
+  }
+
+  try {
+    for (const layoutVertical of [true, false]) {
+      const moduleInstance = createModule({ layoutVertical });
+      moduleInstance.dataState = {
+        loading: false,
+        ssid: "Guest Network",
+        securityType: "WPA2",
+        wifiStandard: "WiFi 6"
+      };
+
+      const dom = moduleInstance.getDom();
+      const securityMetaRow = findByClass(dom, "security-meta-row");
+      const securityMetaText = text(securityMetaRow);
+
+      assert.match(text(dom), /Network: Guest Network/);
+      assert.match(securityMetaText, /WiFi Standard: WiFi 6/);
+      assert.match(securityMetaText, /WiFi Encryption: WPA2/);
+      assert.equal(securityMetaRow.children[0].className, "security-meta-item wifi-standard-row");
+      assert.doesNotMatch(securityMetaText, /\|/);
+      if (layoutVertical) {
+        assert.equal(securityMetaRow.children.length, 2);
+        assert.equal(securityMetaRow.children[1].className, "security-meta-item security-row");
+      } else {
+        assert.equal(securityMetaRow.children.length, 2);
+        assert.equal(securityMetaRow.children[1].className, "security-meta-item security-row");
+      }
+      moduleInstance.stop();
+    }
+  } finally {
+    if (originalDocument === undefined) delete global.document;
+    else global.document = originalDocument;
+  }
+});
+
+test("places the voucher or password fallback beside horizontal network details", () => {
+  const originalDocument = global.document;
+  global.document = {
+    createElement() {
+      return {
+        children: [],
+        textContent: "",
+        appendChild(child) { this.children.push(child); }
+      };
+    }
+  };
+  function text(element) {
+    return element ? [element.textContent, ...element.children.map(text)].join(" ") : "";
+  }
+  function findByClass(element, className) {
+    if (element.className === className) return element;
+    for (const child of element.children) {
+      const match = findByClass(child, className);
+      if (match) return match;
+    }
+    return null;
+  }
+
+  try {
+    const moduleInstance = createModule({
+      layoutVertical: false,
+      includeHotspotPassword: true
+    });
+
+    moduleInstance.dataState = {
+      loading: false,
+      ssid: "Guest Network",
+      securityType: "WPA2",
+      wifiStandard: "WiFi 6",
+      voucherCode: "guest-voucher",
+      hotspotPassword: null,
+      qrString: "WIFI:S:Guest Network;;"
+    };
+    let dom = moduleInstance.getDom();
+    let infoSection = findByClass(dom, "info-section");
+    let voucherSection = findByClass(infoSection, "voucher-section");
+
+    assert.ok(voucherSection);
+    assert.match(text(infoSection), /Voucher Code: guest-voucher/);
+    assert.equal(voucherSection.children[0].textContent, "Voucher Code:");
+    assert.equal(voucherSection.children[1].className, "voucher-code");
+    assert.equal(findByClass(dom, "qr-section").children.some((child) => /Portal Password:/.test(text(child))), false);
+
+    moduleInstance.dataState.voucherCode = null;
+    moduleInstance.dataState.hotspotPassword = "guest-portal-password";
+    dom = moduleInstance.getDom();
+    infoSection = findByClass(dom, "info-section");
+    voucherSection = findByClass(infoSection, "voucher-section");
+
+    assert.ok(voucherSection);
+    assert.match(text(voucherSection), /Password: guest-portal-password/);
+    assert.equal(voucherSection.children[0].textContent, "Password:");
+    assert.equal(voucherSection.children[1].className, "voucher-code");
+    assert.doesNotMatch(text(findByClass(dom, "qr-section")), /guest-portal-password/);
+    moduleInstance.stop();
+  } finally {
+    if (originalDocument === undefined) delete global.document;
+    else global.document = originalDocument;
+  }
+});

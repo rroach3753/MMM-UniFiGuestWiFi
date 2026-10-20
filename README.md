@@ -153,16 +153,21 @@ WiFi standard detection behavior:
 | `layoutVertical` | boolean | `true` | Display layout: `true` for vertical, `false` for horizontal |
 | `showSSID` | boolean | `true` | Show SSID/network name |
 | `showPassword` | boolean | `false` | Show a returned WiFi password; also requires `UNIFI_GUEST_WIFI_ALLOW_WIFI_PASSWORD=true` |
-| `showSecurityType` | boolean | `true` | Show security type badge |
+| `showSecurityType` | boolean | `true` | Show WiFi encryption type |
 | `showWiFiStandard` | boolean | `true` | Show WiFi generation badge |
 | `showVoucher` | boolean | `true` | Show voucher code section |
 | `maskPassword` | boolean | `true` | Mask a displayed WiFi password; captive-portal QR payloads never contain passwords |
+
+In horizontal layout, network details and the voucher code or (when no voucher is
+available) permitted portal password appear together on the left, beside the QR
+code. In vertical layout, the voucher section remains below the content and the
+portal password fallback appears beneath the QR code.
 
 ### Voucher Options
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `voucherLabel` | string | `"Guest Code"` | Label for voucher code display |
+| `voucherLabel` | string | `"Voucher Code:"` | Label for voucher code display |
 | `includeHotspotPassword` | boolean | `false` | Show a returned hotspot password; also requires `UNIFI_GUEST_WIFI_ALLOW_HOTSPOT_PASSWORD=true` |
 
 ### QR Code Options

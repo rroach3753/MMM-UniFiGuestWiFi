@@ -79,6 +79,8 @@
 
 .mmm-unifi-guestwifi .guest-wifi-container.horizontal .info-section {
   min-width: 220px;
+  align-items: flex-start;
+  text-align: left;
 }
 
 .mmm-unifi-guestwifi .ssid-row,
@@ -97,12 +99,57 @@
   width: 100%;
 }
 
+.mmm-unifi-guestwifi .guest-wifi-container.vertical .ssid-row {
+  width: auto;
+}
+
+.mmm-unifi-guestwifi .guest-wifi-container.vertical .ssid-row .value {
+  flex: 0 1 auto;
+}
+
 .mmm-unifi-guestwifi .security-meta-row {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+.mmm-unifi-guestwifi .security-meta-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.mmm-unifi-guestwifi .security-meta-label {
+  font-weight: 600;
+  color: var(--guestwifi-muted);
+}
+
+.mmm-unifi-guestwifi .guest-wifi-container.horizontal .security-meta-row {
+  align-items: flex-start;
+  flex-direction: column;
+  justify-content: flex-start;
+  width: 100%;
+}
+
+.mmm-unifi-guestwifi .guest-wifi-container.horizontal .ssid-row,
+.mmm-unifi-guestwifi .guest-wifi-container.horizontal .security-meta-item,
+.mmm-unifi-guestwifi .guest-wifi-container.horizontal .voucher-section {
+  width: 100%;
+}
+
+.mmm-unifi-guestwifi .guest-wifi-container.horizontal .ssid-row {
+  gap: 6px;
+}
+
+.mmm-unifi-guestwifi .guest-wifi-container.horizontal .ssid-row .label,
+.mmm-unifi-guestwifi .guest-wifi-container.horizontal .security-meta-label,
+.mmm-unifi-guestwifi .guest-wifi-container.horizontal .voucher-section .label {
+  flex: 0 0 112px;
+  width: 112px;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .mmm-unifi-guestwifi .ssid-row .label,
@@ -116,6 +163,23 @@
 .mmm-unifi-guestwifi .password-row .value {
   flex: 1;
   word-break: break-word;
+}
+
+.mmm-unifi-guestwifi .ssid-row .value {
+  box-sizing: border-box;
+  padding: 5px 12px;
+  border: 1px solid rgba(136, 226, 241, 0.42);
+  border-radius: 999px;
+  background-color: rgba(136, 226, 241, 0.18);
+  color: var(--guestwifi-standard);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+}
+
+.mmm-unifi-guestwifi .guest-wifi-container.horizontal .ssid-row .value {
+  flex: 0 1 auto;
+  max-width: calc(100% - 122px);
 }
 
 .mmm-unifi-guestwifi .hidden-badge {
@@ -240,6 +304,38 @@
   color: var(--guestwifi-transition);
 }
 
+.mmm-unifi-guestwifi .guest-wifi-container.horizontal .voucher-section {
+  align-items: center;
+  flex-direction: row;
+  justify-content: flex-start;
+  gap: 6px;
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 0;
+  padding: 0;
+  background: none;
+  border: 0;
+}
+
+.mmm-unifi-guestwifi .guest-wifi-container.horizontal .voucher-section .label {
+  width: auto;
+  text-align: left;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--guestwifi-muted);
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.mmm-unifi-guestwifi .guest-wifi-container.horizontal .voucher-code {
+  max-width: 100%;
+  box-sizing: border-box;
+  padding: 5px 12px;
+  font-size: 11px;
+  text-align: left;
+  border-radius: 999px;
+}
+
 .mmm-unifi-guestwifi .voucher-code {
   font-size: 15px;
   font-weight: 700;
@@ -268,6 +364,11 @@
     text-align: center;
   }
 
+  .mmm-unifi-guestwifi .guest-wifi-container.horizontal .info-section {
+    align-items: flex-start;
+    text-align: left;
+  }
+
   .mmm-unifi-guestwifi {
     padding: 10px;
   }
@@ -282,6 +383,10 @@
   .mmm-unifi-guestwifi .ssid-row .label,
   .mmm-unifi-guestwifi .password-row .label {
     min-width: 0;
+  }
+
+  .mmm-unifi-guestwifi .guest-wifi-container.horizontal .ssid-row .value {
+    max-width: 100%;
   }
 
   .mmm-unifi-guestwifi .portal-password-row,

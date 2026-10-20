@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-10-20
+
+### Changed
+
+- Improve vertical and horizontal layouts, including aligned network details
+  and consistent network, WiFi standard, encryption, and voucher badges.
+- Keep the horizontal voucher or permitted portal-password fallback alongside
+  network details, while preserving voucher-first display behavior.
+
 ## [2.0.1] - 2026-10-18
 
 ### Changed
