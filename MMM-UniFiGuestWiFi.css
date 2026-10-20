@@ -330,6 +330,9 @@
 }
 
 .mmm-unifi-guestwifi .guest-wifi-container.horizontal .voucher-code {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   max-width: 100%;
   box-sizing: border-box;
   padding: 5px 12px;

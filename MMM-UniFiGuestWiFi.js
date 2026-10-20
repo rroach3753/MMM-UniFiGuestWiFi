@@ -270,6 +270,18 @@ Module.register("MMM-UniFiGuestWiFi", {
     container.appendChild(rowData.row);
   },
 
+  formatVoucherCode: function (voucherCode) {
+    var code = String(voucherCode);
+    var midpoint;
+
+    if (code.length % 2 !== 0 || code.indexOf("-") !== -1) {
+      return code;
+    }
+
+    midpoint = code.length / 2;
+    return code.slice(0, midpoint) + "-" + code.slice(midpoint);
+  },
+
   createQRCodeSection: function () {
     var qrSection;
     var qrContainer;
@@ -348,7 +360,7 @@ Module.register("MMM-UniFiGuestWiFi", {
       voucherLabel.textContent = String(this.config.voucherLabel || "Voucher Code").trim().replace(/:+$/, "") + ":";
       securityTypeText = String(this.dataState.securityType || "OPEN").toLowerCase();
       voucherCode.className = "voucher-code security-badge security-" + securityTypeText;
-      voucherCode.textContent = this.dataState.voucherCode;
+      voucherCode.textContent = this.formatVoucherCode(this.dataState.voucherCode);
       voucherSection.appendChild(voucherLabel);
       voucherSection.appendChild(voucherCode);
     } else if (this.dataState.hotspotPassword && this.config.includeHotspotPassword) {

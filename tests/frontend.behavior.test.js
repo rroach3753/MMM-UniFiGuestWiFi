@@ -131,6 +131,36 @@ test("renders the active voucher or the guest portal password fallback", () => {
   }
 });
 
+test("formats even-length voucher codes with a centered hyphen without changing existing formats", () => {
+  const originalDocument = global.document;
+  global.document = {
+    createElement() {
+      return {
+        children: [],
+        textContent: "",
+        appendChild(child) { this.children.push(child); }
+      };
+    }
+  };
+  const moduleInstance = createModule();
+
+  try {
+    for (const [input, expected] of [
+      ["0061784885", "00617-84885"],
+      ["1234", "12-34"],
+      ["12345", "12345"],
+      ["AB-CD", "AB-CD"]
+    ]) {
+      moduleInstance.dataState = { voucherCode: input, securityType: "WPA2" };
+      assert.equal(moduleInstance.createVoucherSection().children[1].textContent, expected);
+    }
+    moduleInstance.stop();
+  } finally {
+    if (originalDocument === undefined) delete global.document;
+    else global.document = originalDocument;
+  }
+});
+
 test("renders WiFi standard and encryption without a separator vertically and on separate horizontal rows", () => {
   const originalDocument = global.document;
   global.document = {
