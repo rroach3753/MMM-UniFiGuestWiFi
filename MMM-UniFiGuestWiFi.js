@@ -308,7 +308,7 @@ Module.register("MMM-UniFiGuestWiFi", {
       portalPwdWrap.className = "portal-password-row";
       portalPwdLabel.className = "label";
       portalPwdLabel.textContent = "Portal Password:";
-      portalPwdValue.className = "voucher-code";
+      portalPwdValue.className = "voucher-code security-badge security-" + String(this.dataState.securityType || "OPEN").toLowerCase();
       portalPwdValue.textContent = this.dataState.hotspotPassword;
 
       portalPwdWrap.appendChild(portalPwdLabel);
@@ -331,6 +331,7 @@ Module.register("MMM-UniFiGuestWiFi", {
     var voucherLabel;
     var voucherCode;
     var noVouchersLabel;
+    var securityTypeText;
 
     if (!this.config.showVoucher) {
       return null;
@@ -344,8 +345,9 @@ Module.register("MMM-UniFiGuestWiFi", {
       voucherCode = document.createElement("div");
 
       voucherLabel.className = "label";
-      voucherLabel.textContent = this.config.voucherLabel;
-      voucherCode.className = "voucher-code";
+      voucherLabel.textContent = String(this.config.voucherLabel || "Voucher Code").trim().replace(/:+$/, "") + ":";
+      securityTypeText = String(this.dataState.securityType || "OPEN").toLowerCase();
+      voucherCode.className = "voucher-code security-badge security-" + securityTypeText;
       voucherCode.textContent = this.dataState.voucherCode;
       voucherSection.appendChild(voucherLabel);
       voucherSection.appendChild(voucherCode);
@@ -361,7 +363,7 @@ Module.register("MMM-UniFiGuestWiFi", {
 
         voucherLabel.className = "label";
         voucherLabel.textContent = "Password:";
-        voucherCode.className = "voucher-code";
+        voucherCode.className = "voucher-code security-badge security-" + String(this.dataState.securityType || "OPEN").toLowerCase();
         voucherCode.textContent = this.dataState.hotspotPassword;
         voucherSection.appendChild(voucherLabel);
         voucherSection.appendChild(voucherCode);

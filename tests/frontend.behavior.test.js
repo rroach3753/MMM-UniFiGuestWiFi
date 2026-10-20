@@ -109,12 +109,14 @@ test("renders the active voucher or the guest portal password fallback", () => {
       voucherCode: "guest-voucher", voucherStatus: "active", hotspotPassword: null
     });
     assert.match(text(moduleInstance.createVoucherSection()), /guest-voucher/);
+    assert.match(moduleInstance.createVoucherSection().children[1].className, /security-badge security-wpa/);
     assert.doesNotMatch(text(moduleInstance.createQRCodeSection()), /Portal Password:/);
     moduleInstance.socketNotificationReceived("UNIFI_GUESTWIFI_DATA", {
       instanceId: "module_1", ssid: "Renamed Hotspot", qrString: "WIFI:S:Renamed Hotspot;;",
       voucherCode: null, voucherStatus: "none", hotspotPassword: "guest-portal-password"
     });
     assert.match(text(moduleInstance.createQRCodeSection()), /Portal Password: guest-portal-password/);
+    assert.match(moduleInstance.createQRCodeSection().children[1].children[1].className, /security-badge security-wpa/);
     assert.doesNotMatch(text(moduleInstance.createVoucherSection()), /guest-voucher/);
     moduleInstance.socketNotificationReceived("UNIFI_GUESTWIFI_DATA", {
       instanceId: "module_1", ssid: "Working WiFi", warning: "Unable to retrieve vouchers.",
@@ -212,7 +214,8 @@ test("places the voucher or password fallback beside horizontal network details"
   try {
     const moduleInstance = createModule({
       layoutVertical: false,
-      includeHotspotPassword: true
+      includeHotspotPassword: true,
+      voucherLabel: "Voucher Code"
     });
 
     moduleInstance.dataState = {
@@ -231,7 +234,7 @@ test("places the voucher or password fallback beside horizontal network details"
     assert.ok(voucherSection);
     assert.match(text(infoSection), /Voucher Code: guest-voucher/);
     assert.equal(voucherSection.children[0].textContent, "Voucher Code:");
-    assert.equal(voucherSection.children[1].className, "voucher-code");
+    assert.match(voucherSection.children[1].className, /voucher-code security-badge security-wpa2/);
     assert.equal(findByClass(dom, "qr-section").children.some((child) => /Portal Password:/.test(text(child))), false);
 
     moduleInstance.dataState.voucherCode = null;
@@ -243,7 +246,7 @@ test("places the voucher or password fallback beside horizontal network details"
     assert.ok(voucherSection);
     assert.match(text(voucherSection), /Password: guest-portal-password/);
     assert.equal(voucherSection.children[0].textContent, "Password:");
-    assert.equal(voucherSection.children[1].className, "voucher-code");
+    assert.match(voucherSection.children[1].className, /voucher-code security-badge security-wpa2/);
     assert.doesNotMatch(text(findByClass(dom, "qr-section")), /guest-portal-password/);
     moduleInstance.stop();
   } finally {
