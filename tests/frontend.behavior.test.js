@@ -169,6 +169,7 @@ test("renders WiFi standard and encryption without a separator vertically and on
       const securityMetaText = text(securityMetaRow);
 
       assert.match(text(dom), /Network: Guest Network/);
+      assert.equal(findByClass(dom, "ssid-row"), null);
       assert.match(securityMetaText, /WiFi Standard: WiFi 6/);
       assert.match(securityMetaText, /WiFi Encryption: WPA2/);
       assert.equal(securityMetaRow.children[0].className, "security-meta-item wifi-standard-row");
@@ -182,6 +183,55 @@ test("renders WiFi standard and encryption without a separator vertically and on
       }
       moduleInstance.stop();
     }
+  } finally {
+    if (originalDocument === undefined) delete global.document;
+    else global.document = originalDocument;
+  }
+});
+
+test("uses the network name as the header and preserves custom title when SSID display is disabled", () => {
+  const originalDocument = global.document;
+  global.document = {
+    createElement() {
+      return {
+        children: [],
+        textContent: "",
+        appendChild(child) { this.children.push(child); }
+      };
+    }
+  };
+  function text(element) {
+    return element ? [element.textContent, ...element.children.map(text)].join(" ") : "";
+  }
+  function findByClass(element, className) {
+    if (element.className === className) return element;
+    for (const child of element.children) {
+      const match = findByClass(child, className);
+      if (match) return match;
+    }
+    return null;
+  }
+
+  try {
+    const moduleInstance = createModule({ title: "My Guest WiFi" });
+    moduleInstance.dataState = {
+      loading: false,
+      ssid: "Guest Network",
+      securityType: "WPA2",
+      isHidden: true
+    };
+
+    let dom = moduleInstance.getDom();
+    let title = findByClass(dom, "title");
+    assert.match(text(title), /Network: Guest Network \(Hidden\)/);
+    assert.equal(findByClass(dom, "ssid-row"), null);
+
+    moduleInstance.config.showSSID = false;
+    dom = moduleInstance.getDom();
+    title = findByClass(dom, "title");
+    assert.equal(text(title), "My Guest WiFi");
+    assert.match(text(findByClass(dom, "ssid-row")), /Network: Guest Network\s+\(Hidden\)/);
+    moduleInstance.stop();
   } finally {
     if (originalDocument === undefined) delete global.document;
     else global.document = originalDocument;

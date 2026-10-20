@@ -149,9 +149,9 @@ WiFi standard detection behavior:
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `title` | string | `"Guest WiFi"` | Module title |
+| `title` | string | `"Guest WiFi"` | Custom module header shown when `showSSID` is `false`; the network name then appears in its own row |
 | `layoutVertical` | boolean | `true` | Display layout: `true` for vertical, `false` for horizontal |
-| `showSSID` | boolean | `true` | Show SSID/network name |
+| `showSSID` | boolean | `true` | Use `Network: <SSID>` as the header; set to `false` to use `title` and show the network in its own row |
 | `showPassword` | boolean | `false` | Show a returned WiFi password; also requires `UNIFI_GUEST_WIFI_ALLOW_WIFI_PASSWORD=true` |
 | `showSecurityType` | boolean | `true` | Show WiFi encryption type |
 | `showWiFiStandard` | boolean | `true` | Show WiFi generation badge |

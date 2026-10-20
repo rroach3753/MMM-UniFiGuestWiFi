@@ -184,7 +184,7 @@ Module.register("MMM-UniFiGuestWiFi", {
     var rowData;
     var hiddenBadge;
 
-    if (!this.config.showSSID) {
+    if (this.config.showSSID) {
       return;
     }
 
@@ -405,10 +405,20 @@ Module.register("MMM-UniFiGuestWiFi", {
       container.appendChild(this.createStatusElement("message warning", this.dataState.warning));
     }
 
-    if (this.config.title) {
+    if (this.config.showSSID || this.config.title) {
       var titleEl = document.createElement("div");
       titleEl.className = "title";
-      titleEl.textContent = this.config.title;
+      if (this.config.showSSID) {
+        titleEl.textContent = "Network: " + this.dataState.ssid;
+        if (this.dataState.isHidden) {
+          var hiddenBadge = document.createElement("span");
+          hiddenBadge.className = "hidden-badge";
+          hiddenBadge.textContent = "(Hidden)";
+          titleEl.appendChild(hiddenBadge);
+        }
+      } else {
+        titleEl.textContent = this.config.title;
+      }
       container.appendChild(titleEl);
     }
 
