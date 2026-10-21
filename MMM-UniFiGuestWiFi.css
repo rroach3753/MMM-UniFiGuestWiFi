@@ -361,6 +361,21 @@
   line-height: 1;
   text-align: center;
   vertical-align: middle;
+  letter-spacing: normal;
+}
+
+@supports (text-box-trim: trim-both) and (text-box-edge: cap alphabetic) {
+  .mmm-unifi-guestwifi .ssid-row .value,
+  .mmm-unifi-guestwifi .security-badge,
+  .mmm-unifi-guestwifi .wifi-standard-badge,
+  .mmm-unifi-guestwifi .voucher-code {
+    text-box-trim: trim-both;
+    text-box-edge: cap alphabetic;
+  }
+
+  .mmm-unifi-guestwifi .guest-wifi-container.horizontal .voucher-code {
+    display: inline-block;
+  }
 }
 
 @media (max-width: 700px) {
