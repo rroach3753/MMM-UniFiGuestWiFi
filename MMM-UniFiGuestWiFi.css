@@ -354,6 +354,15 @@
   word-break: break-word;
 }
 
+.mmm-unifi-guestwifi .ssid-row .value,
+.mmm-unifi-guestwifi .security-badge,
+.mmm-unifi-guestwifi .wifi-standard-badge,
+.mmm-unifi-guestwifi .voucher-code {
+  line-height: 1;
+  text-align: center;
+  vertical-align: middle;
+}
+
 @media (max-width: 700px) {
   .mmm-unifi-guestwifi .guest-wifi-container.horizontal .content-wrapper {
     flex-direction: column;
