@@ -512,8 +512,8 @@ Authentication uses session cookies from `POST /api/auth/login` for controller-l
 
 ```sh
 npm ci --ignore-scripts
-node --run lint
-node --run test
+npm run lint
+npm test
 ```
 
 Run development checks on Node.js 20.19 or newer. ESLint applies recommended
