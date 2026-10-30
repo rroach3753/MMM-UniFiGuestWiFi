@@ -521,13 +521,15 @@ Authentication uses session cookies from `POST /api/auth/login` for controller-l
 
 ```sh
 npm ci --ignore-scripts
-npm run lint
-npm test
+npx --no-install eslint
+node --test tests/*.test.js
 ```
 
 Run development checks on Node.js 20.19 or newer. ESLint applies recommended
-common-error rules with separate browser and Node.js globals. CI runs lint
-and tests on Node.js 20, 22, and 24.
+common-error rules with separate browser and Node.js globals.
+Checks are run locally; this repository has no automated CI workflow.
+These commands invoke tools directly to retain Node.js 20 compatibility;
+`node --run` requires Node.js 22 or newer.
 
 Successful empty API-key responses do not trigger login fallback. When all
 endpoints fail, the error is preserved instead of being reported as an empty
