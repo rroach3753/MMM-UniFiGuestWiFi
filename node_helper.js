@@ -431,6 +431,7 @@ module.exports = NodeHelper.create({
       password: normalizeString(config.password, ""),
       securityType: normalizeString(config.securityType, "WPA").toUpperCase(),
       isHidden: normalizeBoolean(config.isHidden, false),
+      oweQRCompatibility: normalizeBoolean(config.oweQRCompatibility, false),
       controllerUrl: serverController.controllerUrl,
       username: serverController.username,
       controllerPassword: serverController.controllerPassword,
@@ -461,7 +462,8 @@ module.exports = NodeHelper.create({
       config.ssid,
       config.password,
       config.securityType,
-      config.isHidden
+      config.isHidden,
+      config.oweQRCompatibility
     );
 
     return {
@@ -474,7 +476,7 @@ module.exports = NodeHelper.create({
     };
   },
 
-  generateQRString(ssid, _password, securityType, isHidden) {
+  generateQRString(ssid, _password, securityType, isHidden, oweQRCompatibility = false) {
     // Captive portal flow: encode only network join metadata.
     const limitedSSID = limitUtf8Bytes(ssid, 32);
     const escaped = limitedSSID
@@ -484,7 +486,7 @@ module.exports = NodeHelper.create({
       .replace(/:/g, "\\:");
 
     let qrSecurityType = "nopass";
-    if (securityType === "OWE") {
+    if (securityType === "OWE" && !oweQRCompatibility) {
       qrSecurityType = "OWE";
     }
 
@@ -523,7 +525,7 @@ module.exports = NodeHelper.create({
       securityType,
       wifiStandard,
       isHidden,
-      qrString: this.generateQRString(ssid, password, securityType, isHidden)
+      qrString: this.generateQRString(ssid, password, securityType, isHidden, config.oweQRCompatibility)
     };
   },
 

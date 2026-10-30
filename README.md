@@ -175,6 +175,7 @@ portal password fallback appears beneath the QR code.
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `qrSize` | number | `150` | QR code size in pixels (width and height) |
+| `oweQRCompatibility` | boolean | `false` | Experimental: encode OWE QR codes as `T:nopass` for cameras that reject `T:OWE`; joining an OWE-only network is not guaranteed |
 | `colorDark` | string | `"#000000"` | Server-generated QR dark color (`#RGB`, `#RGBA`, `#RRGGBB`, or `#RRGGBBAA`) |
 | `colorLight` | string | `"#ffffff"` | Server-generated QR light color (same hex formats as `colorDark`) |
 
@@ -405,6 +406,14 @@ Notes:
 - Portal/voucher passwords are shown in the UI and are not embedded in the QR payload.
 - OWE transition networks are encoded for compatibility with camera-based onboarding.
 - SSID text is safely escaped for QR payload generation.
+
+If iPhone Camera reports "no usable data found" for an OWE network, try
+`oweQRCompatibility: true` in the module config and restart MagicMirror.
+This changes only the QR payload from `T:OWE` to `T:nopass`; the encryption
+badge and UniFi network configuration remain unchanged. Camera recognition
+does not guarantee a successful OWE connection. If joining fails, connect
+through WiFi Settings instead. Set the option back to `false` to restore the
+default OWE payload. Portal passwords and voucher codes remain display-only.
 
 ## Voucher Code Integration
 

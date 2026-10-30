@@ -80,6 +80,11 @@ test("QR color options reach the backend without exposing server policy", () => 
   assert.equal(moduleInstance.getBackendConfig().colorLight, "#abcdef");
 });
 
+test("OWE QR compatibility is opt-in and reaches the backend", () => {
+  assert.equal(createModule().getBackendConfig().oweQRCompatibility, false);
+  assert.equal(createModule({ oweQRCompatibility: true }).getBackendConfig().oweQRCompatibility, true);
+});
+
 test("styles stay scoped to the guest WiFi module", () => {
   const css = fs.readFileSync(path.join(__dirname, "..", "MMM-UniFiGuestWiFi.css"), "utf8");
   for (const match of css.matchAll(/(?:^|[{},])\s*(\.[\w-][^{},]*)\s*(?=[{,])/g)) {

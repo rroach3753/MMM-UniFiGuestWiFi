@@ -527,6 +527,40 @@ test("hidden network QR payloads include the hidden flag", () => {
       );
 });
 
+test("OWE QR compatibility preserves defaults and changes only the opt-in join metadata", async () => {
+  const originalFetch = helper.fetchHotspotOrGuestNetworks;
+  const originalStandard = helper.mapWiFiStandard;
+  try {
+    helper.fetchHotspotOrGuestNetworks = async () => [{
+      name: "Guest;Network", security: "owe", hide_ssid: true
+    }];
+    helper.mapWiFiStandard = async () => "WiFi 7";
+    for (const enabled of [false, true]) {
+      const config = helper.normalizeConfig({
+        ssid: "Guest;Network", securityType: "OWE", isHidden: true,
+        password: "not-in-qr", oweQRCompatibility: enabled
+      });
+      assert.equal(config.oweQRCompatibility, enabled);
+      const expected = `WIFI:S:Guest\\;Network;T:${enabled ? "nopass" : "OWE"};H:true;;`;
+      assert.equal(helper.getConfigBasedWiFi(config).qrString, expected);
+      const apiResult = await helper.getAPIBasedWiFi(config);
+      assert.equal(apiResult.securityType, "OWE");
+      assert.equal(apiResult.qrString, expected);
+    }
+    assert.equal(helper.normalizeConfig({}).oweQRCompatibility, false);
+    assert.equal(helper.generateQRString("Guest", "", "OWE", false), "WIFI:S:Guest;T:OWE;;");
+    for (const security of ["OPEN", "OWE_TRANSITION", "WPA2"]) {
+      assert.equal(
+        helper.generateQRString("Guest", "secret", security, false, true),
+        helper.generateQRString("Guest", "secret", security, false)
+      );
+    }
+  } finally {
+    helper.fetchHotspotOrGuestNetworks = originalFetch;
+    helper.mapWiFiStandard = originalStandard;
+  }
+});
+
 test("automatic discovery prefers a portal WLAN over an IoT guest-policy WLAN", async () => {
   const originalFetch = helper.fetchFirstSuccessfulNetworkRecords;
   helper.fetchFirstSuccessfulNetworkRecords = async () => [
