@@ -31,6 +31,23 @@ test("server QR generation honors validated colors and retains default output", 
     assert.deepEqual(options.color, { dark: "#123456", light: "#abcdef" });
     await helper.generateQRImageDataUrl("WIFI:S:Guest;;");
     assert.deepEqual(options.color, { dark: "#000000", light: "#ffffff" });
+    let generations = 0;
+    QRCode.toDataURL = async () => {
+      generations += 1;
+      return `data:image/png;base64,${generations}`;
+    };
+    const requestState = {};
+    const cachedConfig = { colorDark: "#123456", colorLight: "#abcdef" };
+    assert.equal(
+      await helper.getCachedQRImageDataUrl("WIFI:S:Guest;;", cachedConfig, requestState),
+      "data:image/png;base64,1"
+    );
+    assert.equal(
+      await helper.getCachedQRImageDataUrl("WIFI:S:Guest;;", cachedConfig, requestState),
+      "data:image/png;base64,1"
+    );
+    await helper.getCachedQRImageDataUrl("WIFI:S:Renamed;;", cachedConfig, requestState);
+    assert.equal(generations, 2);
     for (const value of ["red", "#12", {}, "#000000;bad"]) {
       assert.throws(() => helper.normalizeConfig({ colorDark: value }), /hexadecimal/);
     }
@@ -53,9 +70,138 @@ test("successful empty API-key results do not trigger login", async () => {
     assert.equal(logins, 0);
     await assert.rejects(helper.fetchRecordsWithAuth({
       authMode: "auto", apiKey: "server-key"
-    }, { returnEmptyIfApiKeyOnly: true, fetcher: async () => { throw new Error("offline"); } }), /offline/);
+    }, { fetcher: async () => { throw new Error("offline"); } }), /offline/);
   } finally {
     helper.login = originalLogin;
+  }
+});
+
+test("successful controller sessions are reused across requests", async () => {
+  const originalLogin = helper.login;
+  const originalSessions = helper.sessionCookiesByContext;
+  let logins = 0;
+  helper.sessionCookiesByContext = {};
+  helper.login = async (config) => {
+    logins += 1;
+    helper.setSessionCookies(config, ["TOKEN=session"]);
+  };
+  const config = {
+    authMode: "login",
+    controllerUrl: "https://controller.example",
+    username: "user",
+    controllerPassword: "password",
+    site: "default"
+  };
+  try {
+    for (let index = 0; index < 2; index++) {
+      await helper.fetchRecordsWithAuth(config, {
+        fetcher: async (authOptions) => {
+          assert.equal(authOptions.cookies, true);
+          return [];
+        }
+      });
+    }
+    assert.equal(logins, 1);
+  } finally {
+    helper.login = originalLogin;
+    helper.sessionCookiesByContext = originalSessions;
+  }
+});
+
+test("concurrent controller requests share a cold login", async () => {
+  const originalLogin = helper.login;
+  const originalCookies = helper.sessionCookiesByContext;
+  const originalPromises = helper.loginPromisesByContext;
+  let completeLogin;
+  let logins = 0;
+  helper.sessionCookiesByContext = {};
+  helper.loginPromisesByContext = new Map();
+  helper.login = async (config) => {
+    logins += 1;
+    await new Promise((resolve) => { completeLogin = resolve; });
+    helper.setSessionCookies(config, ["TOKEN=session"]);
+  };
+  const config = {
+    authMode: "login",
+    controllerUrl: "https://controller.example",
+    username: "user",
+    controllerPassword: "password",
+    site: "default"
+  };
+  try {
+    const requests = [
+      helper.fetchRecordsWithAuth(config, { fetcher: async () => [] }),
+      helper.fetchRecordsWithAuth(config, { fetcher: async () => [] })
+    ];
+    await Promise.resolve();
+    assert.equal(logins, 1);
+    completeLogin();
+    await Promise.all(requests);
+    assert.equal(helper.loginPromisesByContext.size, 0);
+  } finally {
+    helper.login = originalLogin;
+    helper.sessionCookiesByContext = originalCookies;
+    helper.loginPromisesByContext = originalPromises;
+  }
+});
+
+test("AP inventory is reused within the controller cache interval", async () => {
+  const originalFetch = helper.fetchRecordsWithAuth;
+  const originalCache = helper.apDeviceCacheByContext;
+  let fetches = 0;
+  helper.apDeviceCacheByContext = new Map();
+  helper.fetchRecordsWithAuth = async () => {
+    fetches += 1;
+    return [{ model: "U7 Pro" }];
+  };
+  const config = {
+    controllerUrl: "https://controller.example",
+    username: "user",
+    site: "default"
+  };
+  try {
+    assert.deepEqual(await helper.fetchAPDeviceRecords(config), [{ model: "U7 Pro" }]);
+    assert.deepEqual(await helper.fetchAPDeviceRecords(config), [{ model: "U7 Pro" }]);
+    assert.equal(fetches, 1);
+    helper.apDeviceCacheByContext.get(helper.getSessionContextKey(config)).fetchedAt -= 900001;
+    await helper.fetchAPDeviceRecords(config);
+    assert.equal(fetches, 2);
+  } finally {
+    helper.fetchRecordsWithAuth = originalFetch;
+    helper.apDeviceCacheByContext = originalCache;
+  }
+});
+
+test("stale AP inventory requests cannot repopulate or delete current cache state", async () => {
+  const originalFetch = helper.fetchRecordsWithAuth;
+  const originalCache = helper.apDeviceCacheByContext;
+  let complete;
+  helper.apDeviceCacheByContext = new Map();
+  helper.fetchRecordsWithAuth = async () => new Promise((resolve, reject) => {
+    complete = { resolve, reject };
+  });
+  const config = {
+    controllerUrl: "https://controller.example",
+    username: "user",
+    site: "default"
+  };
+  try {
+    const staleSuccess = helper.fetchAPDeviceRecords(config);
+    helper.apDeviceCacheByContext = new Map();
+    complete.resolve([{ model: "old" }]);
+    assert.deepEqual(await staleSuccess, [{ model: "old" }]);
+    assert.equal(helper.apDeviceCacheByContext.size, 0);
+
+    const staleFailure = helper.fetchAPDeviceRecords(config);
+    const cacheKey = helper.getSessionContextKey(config);
+    const replacement = { fetchedAt: Date.now(), records: [{ model: "new" }] };
+    helper.apDeviceCacheByContext.set(cacheKey, replacement);
+    complete.reject(new Error("offline"));
+    await assert.rejects(staleFailure, /offline/);
+    assert.equal(helper.apDeviceCacheByContext.get(cacheKey), replacement);
+  } finally {
+    helper.fetchRecordsWithAuth = originalFetch;
+    helper.apDeviceCacheByContext = originalCache;
   }
 });
 
@@ -74,6 +220,14 @@ test("empty endpoint success takes precedence over unsupported endpoints", async
   } finally {
     helper.requestJson = originalRequest;
   }
+});
+
+test("nested network traversal handles cycles without front-removing the queue", () => {
+  const root = { child: {} };
+  const network = { name: "Guest" };
+  root.child.parent = root;
+  root.child.records = { nested: [network] };
+  assert.deepEqual(helper.findNetworkLikeArray(root), [network]);
 });
 
 test("optional voucher failures remain visible without blocking WiFi data", async () => {

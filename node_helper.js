@@ -9,6 +9,7 @@ const MIN_REFRESH_INTERVAL_MS = 60000;
 const MAX_REFRESH_INTERVAL_MS = 86400000;
 const MAX_RESPONSE_BYTES = 1048576;
 const MAX_INSTANCES = 16;
+const AP_DEVICE_CACHE_TTL_MS = 900000;
 const INSTANCE_ID_PATTERN = /^[A-Za-z0-9._:-]{1,128}$/;
 
 function normalizeBoolean(value, fallback) {
@@ -199,6 +200,8 @@ module.exports = NodeHelper.create({
     this.refreshTimers = Object.create(null);
     this.requestStates = new Map();
     this.sessionCookiesByContext = {};
+    this.loginPromisesByContext = new Map();
+    this.apDeviceCacheByContext = new Map();
     if (!getServerPolicy().verifySSL) {
       console.warn("[MMM-UniFiGuestWiFi] WARNING: TLS certificate verification is disabled by server policy.");
     }
@@ -228,6 +231,27 @@ module.exports = NodeHelper.create({
     this.sessionCookiesByContext[contextKey] = [];
   },
 
+  async ensureLogin(config, username, password, force = false) {
+    const contextKey = this.getSessionContextKey(config);
+    if (!this.loginPromisesByContext) this.loginPromisesByContext = new Map();
+    const pending = this.loginPromisesByContext.get(contextKey);
+    if (pending) return pending;
+    if (!force && this.getSessionCookies(config).length) return;
+    if (force) this.clearSessionCookies(config);
+
+    const loginPromises = this.loginPromisesByContext;
+    const loginPromise = this.login(config, username, password);
+    loginPromises.set(contextKey, loginPromise);
+    try {
+      await loginPromise;
+    } finally {
+      if (this.loginPromisesByContext === loginPromises &&
+          loginPromises.get(contextKey) === loginPromise) {
+        loginPromises.delete(contextKey);
+      }
+    }
+  },
+
   async fetchRecordsWithAuth(config, options) {
     const requestOptions = options || {};
     const endpoints = requestOptions.endpoints || [];
@@ -254,7 +278,7 @@ module.exports = NodeHelper.create({
       throw new Error("Missing username or password in MMM-UniFiGuestWiFi config.");
     }
 
-    await this.login(config, auth.username, auth.password);
+    await this.ensureLogin(config, auth.username, auth.password);
     return fetcher({ cookies: true }, endpoints);
   },
 
@@ -336,7 +360,11 @@ module.exports = NodeHelper.create({
       }
 
       if (wifiData.qrString) {
-        wifiData.qrImageDataUrl = await this.generateQRImageDataUrl(wifiData.qrString, normalizedConfig);
+        wifiData.qrImageDataUrl = await this.getCachedQRImageDataUrl(
+          wifiData.qrString,
+          normalizedConfig,
+          requestState
+        );
       }
 
       if (normalizedConfig.includeVouchers || normalizedConfig.includeHotspotPassword) {
@@ -506,6 +534,20 @@ module.exports = NodeHelper.create({
     });
   },
 
+  async getCachedQRImageDataUrl(qrText, config, requestState) {
+    const cacheKey = JSON.stringify([
+      qrText,
+      config.colorDark || "#000000",
+      config.colorLight || "#ffffff"
+    ]);
+    if (requestState.qrCache && requestState.qrCache.key === cacheKey) {
+      return requestState.qrCache.dataUrl;
+    }
+    const dataUrl = await this.generateQRImageDataUrl(qrText, config);
+    requestState.qrCache = { key: cacheKey, dataUrl };
+    return dataUrl;
+  },
+
   async getAPIBasedWiFi(config) {
     const guestNetworks = await this.fetchHotspotOrGuestNetworks(config);
     if (!guestNetworks || guestNetworks.length === 0) {
@@ -656,17 +698,42 @@ module.exports = NodeHelper.create({
   },
 
   async fetchAPDeviceRecords(config) {
+    if (!(this.apDeviceCacheByContext instanceof Map)) {
+      this.apDeviceCacheByContext = new Map();
+    }
+    const cacheKey = this.getSessionContextKey(config);
+    const cached = this.apDeviceCacheByContext.get(cacheKey);
+    if (cached && cached.promise) return cached.promise;
+    if (cached && Date.now() - cached.fetchedAt < AP_DEVICE_CACHE_TTL_MS) {
+      return cached.records;
+    }
+
     const site = encodeURIComponent(config.site);
     const endpoints = [
       `/proxy/network/api/s/${site}/stat/device`,
       `/api/s/${site}/stat/device`
     ];
 
-    return this.fetchRecordsWithAuth(config, {
+    const fetchPromise = this.fetchRecordsWithAuth(config, {
       endpoints,
-      returnEmptyIfApiKeyOnly: true,
       fetcher: (authOptions, endpointList) => this.fetchRecordsFromAnyEndpoint(config, endpointList, authOptions)
     });
+    const cache = this.apDeviceCacheByContext;
+    cache.set(cacheKey, { promise: fetchPromise });
+    try {
+      const records = await fetchPromise;
+      if (this.apDeviceCacheByContext === cache &&
+          cache.get(cacheKey)?.promise === fetchPromise) {
+        cache.set(cacheKey, { fetchedAt: Date.now(), records });
+      }
+      return records;
+    } catch (error) {
+      if (this.apDeviceCacheByContext === cache &&
+          cache.get(cacheKey)?.promise === fetchPromise) {
+        cache.delete(cacheKey);
+      }
+      throw error;
+    }
   },
 
   mapSecurityType(network) {
@@ -924,12 +991,11 @@ module.exports = NodeHelper.create({
   },
 
   async retryNetworkFetchAfterReauth(config, endpoints, authOptions, extractRecords) {
-    this.clearSessionCookies(config);
-
-    await this.login(
+    await this.ensureLogin(
       config,
       normalizeString(config.username, ""),
-      resolveControllerPassword(config)
+      resolveControllerPassword(config),
+      true
     );
 
     return this.fetchNetworkEndpoints(
@@ -1011,9 +1077,10 @@ module.exports = NodeHelper.create({
   findNetworkLikeArray(root) {
     const queue = [root];
     const seen = new Set();
+    let queueIndex = 0;
 
-    while (queue.length > 0) {
-      const node = queue.shift();
+    while (queueIndex < queue.length) {
+      const node = queue[queueIndex++];
       if (!node || typeof node !== "object") {
         continue;
       }
@@ -1195,18 +1262,19 @@ module.exports = NodeHelper.create({
           rejectUnauthorized: normalizeBoolean(config.verifySSL, true)
         },
         (response) => {
-          let raw = "";
+          const chunks = [];
           let bodyLength = 0;
           let limitExceeded = false;
 
           response.on("data", (chunk) => {
-            bodyLength += chunk.length;
+            const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+            bodyLength += buffer.length;
             if (bodyLength > MAX_RESPONSE_BYTES) {
               limitExceeded = true;
               request.destroy(new Error("Response body exceeded 1 MB limit"));
               return;
             }
-            raw += chunk;
+            chunks.push(buffer);
           });
 
           response.on("end", () => {
@@ -1221,12 +1289,13 @@ module.exports = NodeHelper.create({
               return;
             }
 
-            if (!raw) {
+            if (!chunks.length) {
               resolve({ headers: response.headers, json: {} });
               return;
             }
 
             try {
+              const raw = Buffer.concat(chunks, bodyLength).toString("utf8");
               resolve({ headers: response.headers, json: JSON.parse(raw) });
             } catch (error) {
               reject(new Error(`Failed to parse UniFi response: ${error.message}`));
@@ -1454,6 +1523,8 @@ module.exports = NodeHelper.create({
     this.refreshTimers = Object.create(null);
     this.requestStates = new Map();
     this.sessionCookiesByContext = {};
+    this.loginPromisesByContext = new Map();
+    this.apDeviceCacheByContext = new Map();
     console.log("[MMM-UniFiGuestWiFi] Timers cleaned up");
   }
 });
