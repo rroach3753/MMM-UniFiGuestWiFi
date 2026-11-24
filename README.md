@@ -100,6 +100,11 @@ hides the portal password fallback.
 
 ## Configuration Options
 
+The [`config.schema.json`](./config.schema.json) file provides validation,
+completion, and default-value hints for the browser-side module `config`
+object. Controller credentials and disclosure policy remain server environment
+settings and are intentionally excluded.
+
 ### Data Source Options
 
 Data-source and controller security policy is configured only in the

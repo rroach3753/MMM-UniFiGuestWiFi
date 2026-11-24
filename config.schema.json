@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/rroach3753/MMM-UniFiGuestWiFi/main/config.schema.json",
+  "title": "MMM-UniFiGuestWiFi configuration",
+  "description": "Browser-side configuration for MMM-UniFiGuestWiFi. Controller credentials and disclosure policy are environment-only.",
+  "type": "object",
+  "properties": {
+    "ssid": { "type": "string", "default": "Guest Network" },
+    "password": { "type": "string", "default": "guestpass123", "description": "Config-mode fallback WiFi password." },
+    "securityType": {
+      "type": "string",
+      "enum": ["OPEN", "OWE", "OWE_TRANSITION", "WPA", "WPA2", "WPA3"],
+      "default": "WPA"
+    },
+    "isHidden": { "type": "boolean", "default": false },
+    "requestTimeout": { "type": "integer", "minimum": 1000, "maximum": 30000, "default": 10000 },
+    "refreshInterval": { "type": "integer", "minimum": 60000, "maximum": 86400000, "default": 300000 },
+    "title": { "type": "string", "default": "Guest WiFi" },
+    "layoutVertical": { "type": "boolean", "default": true },
+    "showSSID": { "type": "boolean", "default": true },
+    "showPassword": { "type": "boolean", "default": false },
+    "showSecurityType": { "type": "boolean", "default": true },
+    "showWiFiStandard": { "type": "boolean", "default": true },
+    "enhancedWiFiStandardDetection": { "type": "boolean", "default": true },
+    "showVoucher": { "type": "boolean", "default": true },
+    "maskPassword": { "type": "boolean", "default": true },
+    "voucherLabel": { "type": "string", "default": "Voucher Code:" },
+    "includeHotspotPassword": { "type": "boolean", "default": false },
+    "qrSize": { "type": "integer", "minimum": 1, "default": 150 },
+    "oweQRCompatibility": { "type": "boolean", "default": false },
+    "colorDark": {
+      "type": "string",
+      "pattern": "^#(?:[0-9A-Fa-f]{3,4}|[0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})$",
+      "default": "#000000"
+    },
+    "colorLight": {
+      "type": "string",
+      "pattern": "^#(?:[0-9A-Fa-f]{3,4}|[0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})$",
+      "default": "#ffffff"
+    },
+    "emptyMessage": { "type": "string", "default": "No guest WiFi configured." },
+    "loadingMessage": { "type": "string", "default": "Loading guest WiFi details..." },
+    "noVouchersMessage": { "type": "string", "default": "No active vouchers available" },
+    "captivePortalHint": {
+      "type": "string",
+      "default": "If the portal page does not open automatically, close Camera and open your favorite browser."
+    }
+  },
+  "additionalProperties": false
+}
